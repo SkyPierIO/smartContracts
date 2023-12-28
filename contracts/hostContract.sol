@@ -14,20 +14,25 @@ contract HostContract is
     ERC721Burnable,
     Ownable
 {
-    // We need the events to show in the future the list of all the nodes
+    // Events to show a list of all the nodes
     event HostRegistered(uint256 tokenId, string nodeId);
     event HostUnregistered(uint256 tokenId);
 
+    // Keeps track of the next token ID to be minted.
     uint256 private _nextTokenId;
 
+    // Constructor takes an address and sets the contract owner using the Ownable contract
     constructor(
         address initialOwner
     ) ERC721("NODE", "NODE") Ownable(initialOwner) {}
 
+    // Overrides the base URI function from
     function _baseURI() internal pure override returns (string memory) {
         return "https://ipfs.io/ipfs/";
     }
 
+    // A public function to mint a new NFT (host) with a unique ID, sets its URI, and emits the HostRegistered event.
+    // It takes to (recipient address), uri (URI for the token), and nodeId as arguments.
     function safeMint(
         address to,
         string memory uri,
@@ -39,8 +44,7 @@ contract HostContract is
         emit HostRegistered(tokenId, nodeId);
     }
 
-    // The following functions are overrides required by Solidity.
-
+    // The following functions are internal overrides required by Solidity due to multiple inheritance from various ERC721-related contracts.
     function _update(
         address to,
         uint256 tokenId,
@@ -56,6 +60,7 @@ contract HostContract is
         super._increaseBalance(account, value);
     }
 
+    // Returns the base URI prefix for token URIs.
     function tokenURI(
         uint256 tokenId
     ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
