@@ -31,7 +31,7 @@ contract HostContract is ERC721 {
     uint256 public nextTokenId;
 
     // Constructor: Called once on contract deployment
-    constructor(address _owner) ERC721("NFT", "NFT") {
+    constructor(address _owner) ERC721("NodeNFT", "NODE") {
         owner = _owner;
     }
 
