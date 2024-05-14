@@ -1,80 +1,80 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity >=0.8.0 <0.9.0;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract HostContract is
-    ERC721,
-    ERC721Enumerable,
-    ERC721URIStorage,
-    ERC721Burnable,
-    Ownable
-{
-    // Events to show a list of all the nodes
-    event HostRegistered(uint256 tokenId, string nodeId);
-    event HostUnregistered(uint256 tokenId);
+contract HostContract is ERC721 {
+    // Events
+    event HostRegistered(address indexed host, string nodeId);
+    event HostUnregistered(address indexed host, string nodeId);
+    event NFTMinted(uint256 indexed tokenId, address indexed owner);
+    event NFTBurned(uint256 indexed tokenId, address indexed owner);
 
-    // Keeps track of the next token ID to be minted.
-    uint256 private _nextTokenId;
-
-    // Constructor takes an address and sets the contract owner using the Ownable contract
-    constructor(
-        address initialOwner
-    ) ERC721("NODE", "NODE") Ownable(initialOwner) {}
-
-    // Overrides the base URI function from
-    function _baseURI() internal pure override returns (string memory) {
-        return "https://ipfs.io/ipfs/";
+    /**
+     * A smart contract that stores the hosts registered on the network
+     * @author Ting & Miguel
+     */
+    struct NodeInfo {
+        string nodeId;
+        uint256 balance;
+        bool active;
+        uint users;
     }
 
-    // A public function to mint a new NFT (host) with a unique ID, sets its URI, and emits the HostRegistered event.
-    // It takes to (recipient address), uri (URI for the token), and nodeId as arguments.
-    function safeMint(
-        address to,
-        string memory uri,
-        string memory nodeId
-    ) public {
-        uint256 tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
-        emit HostRegistered(tokenId, nodeId);
+    // State Variables
+    address public immutable owner;
+    mapping(address => NodeInfo) hostsToInfo;
+
+    // NFTs
+    mapping(uint256 => bool) public activeNFTs;
+    mapping(uint256 => bool) public burnedNFTs;
+    uint256 public nextTokenId;
+
+    // Constructor: Called once on contract deployment
+    constructor(address _owner) ERC721("NFT", "NFT") {
+        owner = _owner;
     }
 
-    // The following functions are internal overrides required by Solidity due to multiple inheritance from various ERC721-related contracts.
-    function _update(
-        address to,
-        uint256 tokenId,
-        address auth
-    ) internal override(ERC721, ERC721Enumerable) returns (address) {
-        return super._update(to, tokenId, auth);
+    function getHost(address host) public view returns (NodeInfo memory) {
+        return hostsToInfo[host];
     }
 
-    function _increaseBalance(
-        address account,
-        uint128 value
-    ) internal override(ERC721, ERC721Enumerable) {
-        super._increaseBalance(account, value);
+    function registerAsHost(string memory nodeId) public {
+        if (!hostsToInfo[msg.sender].active) {
+            hostsToInfo[msg.sender] = NodeInfo(nodeId, 0, true, 0);
+            emit HostRegistered(msg.sender, nodeId);
+        }
     }
 
-    // Returns the base URI prefix for token URIs.
-    function tokenURI(
-        uint256 tokenId
-    ) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        return super.tokenURI(tokenId);
+    function unregisterAsHost(string memory nodeId) public {
+        if (hostsToInfo[msg.sender].active) {
+            hostsToInfo[msg.sender].nodeId = "";
+            hostsToInfo[msg.sender].active = false;
+            emit HostUnregistered(msg.sender, nodeId);
+        }
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    )
-        public
-        view
-        override(ERC721, ERC721Enumerable, ERC721URIStorage)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
+    function useHost(address host) public {
+        hostsToInfo[host].users++;
+    }
+
+    // NFT functions
+    function mintNFT(address to) external {
+        uint256 tokenId = nextTokenId++;
+        _mint(to, tokenId);
+        activeNFTs[tokenId] = true;
+        emit NFTMinted(tokenId, to);
+    }
+
+    function burnNFT(uint256 tokenId) external {
+        require(ownerOf(tokenId) == msg.sender, "Caller is not the owner");
+        _burn(tokenId);
+        activeNFTs[tokenId] = false;
+        burnedNFTs[tokenId] = true;
+        emit NFTBurned(tokenId, msg.sender);
+    }
+
+    function isBurned(uint256 tokenId) external view returns (bool) {
+        return burnedNFTs[tokenId];
     }
 }
