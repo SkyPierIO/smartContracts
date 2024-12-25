@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+// AutomationCompatible.sol imports the functions from both ./AutomationBase.sol and
+// ./interfaces/AutomationCompatibleInterface.sol
+import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
+
+// Get all active Node NFTs from AllActiveNodeNFT
 contract MonthlyPaymentContract {
-    address public owner;
+    address public owner; // Wallet address from Unlock
+
     mapping(address => uint256) public paymentRecipients;
 
     constructor() {
@@ -29,4 +35,9 @@ contract MonthlyPaymentContract {
             payable(recipient).transfer(amount);
         }
     }
+}
+
+// Filter to all active Node NFTs
+contract AllActiveNodeNFT is ERC721 {
+
 }

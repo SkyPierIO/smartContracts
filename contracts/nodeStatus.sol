@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract NodeStatusContract is ERC721 {
+contract NodeStatusContract is ERC721Enumerable {
     struct Node {
         string peerId;
         string status; // Can be a string json
@@ -15,6 +16,12 @@ contract NodeStatusContract is ERC721 {
         string memory name,
         string memory symbol
     ) ERC721(name, symbol) {}
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC721Enumerable) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
 
     // Assumes that the sender is the owner of the token being minted
     function mint(string memory peerId, string memory status) external {
@@ -42,6 +49,16 @@ contract NodeStatusContract is ERC721 {
 
         nodes[tokenId].status = newStatus;
         emit StatusUpdated(tokenId, newStatus);
+    }
+
+    function _isApprovedOrOwner(
+        address spender,
+        uint256 tokenId
+    ) internal view returns (bool) {
+        address ownerAddress = ownerOf(tokenId);
+        return (spender == ownerAddress ||
+            getApproved(tokenId) == spender ||
+            isApprovedForAll(ownerAddress, spender));
     }
 
     event StatusUpdated(uint256 indexed tokenId, string newStatus);
