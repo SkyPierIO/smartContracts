@@ -3,7 +3,8 @@ FROM mcr.microsoft.com/devcontainers/typescript-node:1-${VARIANT}
 
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && apt-get -y install --no-install-recommends npm
-    && sudo apt-get install gnupg2 -y
+
+RUN sudo apt-get install gnupg2 -y
     
 # [Optional] Uncomment if you want to install an additional version
 #  of node using nvm
