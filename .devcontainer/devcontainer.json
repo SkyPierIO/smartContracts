@@ -13,7 +13,7 @@
 	"forwardPorts": [3000],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "sudo apt-get update && sudo apt-get install gnupg2 -y",
+	// "postCreateCommand": "",
 
 	// Configure tool-specific properties.
 	"customizations": {
