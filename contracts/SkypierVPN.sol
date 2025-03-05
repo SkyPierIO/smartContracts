@@ -32,17 +32,7 @@ contract SkypierVPN is
     AccessControlUpgradeable,
     UUPSUpgradeable
 {
-    // The following functions are overrides required by Solidity.
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        override(ERC1155Upgradeable, AccessControlUpgradeable)
-        returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
-    }
-
-    // Logic Start
+    // Role Assignment
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -94,7 +84,25 @@ contract SkypierVPN is
         _grantRole(ADMIN_ROLE, msg.sender);
     }
 
+    // Only ADMIN_ROLE gets to upgrade
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+        onlyRole(ADMIN_ROLE)
+    {}
+
+    // The following functions are overrides required by Solidity.
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
     
+    // Logic Starts
     modifier onlyAdmin() {
         require(hasRole(ADMIN_ROLE, msg.sender), "Caller is not an admin");
         _;
@@ -161,9 +169,6 @@ contract SkypierVPN is
     function updateStakeAmount(uint256 newStakeAmount) external onlyAdmin {
         stakeAmount = newStakeAmount;
     }
-
-    function _authorizeUpgrade(address newImplementation)
-        internal override onlyRole(ADMIN_ROLE) {}
 
     // Public view functions
     function getValidatedOperatorCount() external view returns (uint256) {
