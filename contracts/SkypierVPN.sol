@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.22;
 
 // The purpose of this contract is to onboard operator nodes to the Skypier Network
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+// import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 interface ISkypierToken {
     function transfer(
@@ -26,10 +27,22 @@ interface ISkypierBadge {
 
 contract SkypierVPN is
     Initializable,
-    OwnableUpgradeable,
+    ERC1155Upgradeable,
+    // OwnableUpgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable
 {
+    // The following functions are overrides required by Solidity.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    // Logic Start
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
@@ -56,13 +69,19 @@ contract SkypierVPN is
 
     // event NodeDenied(address indexed operator, string peerId);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     function initialize(
         uint256 _stakeAmount,
         uint256 _validatorCount,
         address _skypierTokenAddress,
         address _skypierBadgeAddress
     ) public initializer {
-        __Ownable_init(msg.sender);
+        // __Ownable_init(msg.sender);
+        __ERC1155_init("");
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
@@ -71,8 +90,8 @@ contract SkypierVPN is
         skypierToken = ISkypierToken(_skypierTokenAddress);
         skypierBadge = ISkypierBadge(_skypierBadgeAddress);
 
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setupRole(ADMIN_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
     }
 
     
@@ -143,9 +162,8 @@ contract SkypierVPN is
         stakeAmount = newStakeAmount;
     }
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {}
+    function _authorizeUpgrade(address newImplementation)
+        internal override onlyRole(ADMIN_ROLE) {}
 
     // Public view functions
     function getValidatedOperatorCount() external view returns (uint256) {
