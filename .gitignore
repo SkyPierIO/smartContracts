@@ -132,3 +132,7 @@ dist
 # Hardhat 
 artifacts/
 cache/
+
+# Remix
+.deploys
+.deps
