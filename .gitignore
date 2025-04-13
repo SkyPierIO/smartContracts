@@ -136,3 +136,4 @@ cache/
 # Remix
 .deploys
 .deps
+.states
