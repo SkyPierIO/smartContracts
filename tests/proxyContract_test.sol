@@ -10,6 +10,9 @@ import "remix_tests.sol";
 // But it will work fine in 'Solidity Unit Testing' plugin
 import "remix_accounts.sol";
 // <import file to test>
+import "contracts/SkypierVPN.sol";
+// import "contracts/SkypierBadge.sol";
+// import "contracts/SkypierToken.sol"
 
 // File name has to end with '_test.sol', this file can contain more than one testSuite contracts
 contract testSuite {

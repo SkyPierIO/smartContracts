@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.0.0;
 
 // The purpose of this contract is to assign ERC1155 SkypierBadge to our users
 

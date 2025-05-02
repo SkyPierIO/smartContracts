@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.22.0;
 
 // The purpose of this contract is to onboard operator nodes to the Skypier Network
 
