@@ -37,9 +37,10 @@ contract ERC6551Registry is IERC6551Registry {
         require(account.code.length == 0, "Account already deployed");
 
         emit ERC6551AccountCreated(
+            msg.sender,
             account,
-            implementation,
             chainId,
+            implementation,
             tokenContract,
             tokenId,
             salt

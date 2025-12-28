@@ -6,13 +6,16 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
-contract ContributionBadges is ERC20, AccessControl {
+contract ContributionBadges is ERC20, AccessControl, ReentrancyGuard{
     uint256 public constant WALLET_CAP = 6;
     uint256 public constant BADGE_EXPIRY = 78 weeks;
 
     struct BadgeHolder {
-        uint256 badgeTypes; // Bitmask of badge types
         uint256 expiry;     // Expiry timestamp
         uint256 mintTime;   // When the badge was minted
     }
@@ -20,35 +23,81 @@ contract ContributionBadges is ERC20, AccessControl {
     mapping(address => BadgeHolder) private _badgeHolders;
     mapping(address => uint256) private _lastClaim;
 
-    constructor() ERC20("Skypier Contribution Badges", "SCB") {
+    IERC1155 public immutable builderToken;
+    uint256 public immutable builderTokenId;
+    mapping(uint256 => uint256) private _expiry;
+    uint256 public expiryDuration = 1 years;
+
+    event BadgeExpired(uint256 indexed tokenId, uint256 expiryTime);
+    event ExpiryExtended(uint256 indexed tokenId, uint256 newExpiryTime);
+
+    constructor(address _builderToken, uint256 _builderTokenId)
+        ERC1155("https://skypier.io/contribution/{id}.json")
+    {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        builderToken = IERC1155(_builderToken);
+        builderTokenId = _builderTokenId;
+    }
+
+    modifier onlyBuilderTokenHolder() {
+        require(
+            builderToken.balanceOf(msg.sender, builderTokenId) > 0,
+            "Must hold Builder Token"
+        );
+        _;
+    }
+
+    function isExpired(uint256 tokenId) public view returns (bool) {
+        return _expiry[tokenId] != 0 && block.timestamp >= _expiry[tokenId];
+    }
+
+    function extendExpiry(uint256 tokenId, uint256 newExpiryDuration)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
+        require(_expiry[tokenId] != 0, "Badge does not exist or has no expiry");
+        _expiry[tokenId] = block.timestamp + newExpiryDuration;
+        emit ExpiryExtended(tokenId, _expiry[tokenId]);
+    }
+
+    function setDefaultExpiryDuration(uint256 duration)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        expiryDuration = duration;
     }
 
     /**
      * @dev Mints contribution badges to a builder
      * @param to Address to receive badges
      * @param amount Number of badges to mint (max 6)
-     * @param badgeType Type of badge (bitmask)
+     * @param customExpiryDuration 
      */
-    function mintContributionBadges(
+    function mintContributionBadge(
         address to,
         uint256 amount,
-        uint256 badgeType
-    ) external {
+        uint256 customExpiryDuration
+    )
+        external
+        onlyBuilderTokenHolder
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
         require(amount <= WALLET_CAP, "Exceeds wallet cap");
-        require(badgeType != 0, "Invalid badge type");
-
-        BadgeHolder storage holder = _badgeHolders[to];
-        require(holder.badgeTypes + badgeType <= WALLET_CAP, "Exceeds badge limit");
+        require(to != address(0), "Cannot mint to zero address");
 
         _mint(to, amount);
-        holder.badgeTypes |= badgeType;
-        holder.expiry = block.timestamp + BADGE_EXPIRY;
+        // holder.expiry = block.timestamp + BADGE_EXPIRY;
         holder.mintTime = block.timestamp;
+
+        // _expiry[tokenId] = block.timestamp + (customExpiryDuration > 0 ? customExpiryDuration : expiryDuration);
+        // emit BadgeExpired(tokenId, _expiry[tokenId]);
 
         emit Transfer(address(0), to, amount);
     }
+
 
     /**
      * @dev Burns expired badges
@@ -63,7 +112,6 @@ contract ContributionBadges is ERC20, AccessControl {
         require(balanceOf(from) >= amount, "Insufficient balance");
 
         _burn(from, amount);
-        holder.badgeTypes = 0;
         holder.expiry = 0;
     }
 
@@ -100,4 +148,15 @@ contract ContributionBadges is ERC20, AccessControl {
             require(to == address(0) || to == from, "Badges are soulbound");
         }
     }
+
+    // function _beforeTokenTransfer(
+    //     address from,
+    //     address to,
+    //     uint256 tokenId,
+    //     uint256
+    // ) internal virtual override {
+    //     super._beforeTokenTransfer(from, to, tokenId, 1);
+    //     require(!isExpired(tokenId), "Cannot transfer expired badge");
+    // }
+
 }
