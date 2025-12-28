@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract AnnualizedBadges is ERC1155, AccessControl {
+contract AnnualizedBadges is ERC1155, AccessControl, ReentrancyGuard {
     // Badge IDs
     uint256 public constant TECHNICAL_FELLOW_BADGE = 0;
     uint256 public constant MENTOR_BADGE = 1;
@@ -29,9 +30,34 @@ contract AnnualizedBadges is ERC1155, AccessControl {
     mapping(uint256 => mapping(uint256 => BadgeInfo)) private _badgeInfo;
     mapping(address => mapping(uint256 => bool)) private _hasBadge;
 
-    constructor() ERC1155("https://skypier.io/annualized/{id}.json") {
+    IERC1155 public immutable builderToken;
+    uint256 public immutable builderTokenId;
+
+    constructor(address _builderToken, uint256 _builderTokenId)
+        ERC1155("https://skypier.io/annualized/{id}.json")
+    {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        builderToken = IERC1155(_builderToken);
+        builderTokenId = _builderTokenId;
     }
+
+    modifier onlyBuilderTokenHolder() {  // QA Badge Only
+        require(
+            builderToken.balanceOf(msg.sender, builderTokenId) > 0,
+            "Must hold Builder Token"
+        );
+        _;
+    }
+
+    // function mintAnnualizedBadge(address to, uint256 amount)
+    //     external
+    //     onlyBuilderTokenHolder
+    //     onlyRole(DEFAULT_ADMIN_ROLE)
+    //     nonReentrant
+    // {
+    //     require(to != address(0), "Cannot mint to zero address");
+    //     _mint(to, _nextId(), amount, "");
+    // }
 
     /**
      * @dev Awards an annualized badge to a holder

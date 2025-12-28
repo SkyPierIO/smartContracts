@@ -1,26 +1,15 @@
 // contracts/internal/tokens/ContributionBadges.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 
-contract ContributionBadges is ERC20, ERC20Permit, ERC20Votes, AccessControl {
+contract ContributionBadges is ERC20, AccessControl {
     uint256 public constant WALLET_CAP = 6;
     uint256 public constant BADGE_EXPIRY = 78 weeks;
-
-    // Badge types (using bitmask for multiple badges)
-    uint256 public constant TECHNICAL_FELLOW = 1;
-    uint256 public constant MENTOR = 2;
-    uint256 public constant PROJECT_LEAD = 4;
-    uint256 public constant PEOPLE_LEAD = 8;
-    uint256 public constant TRAILBLAZER = 16;
-    uint256 public constant TEAM_SAGE = 32;
-    uint256 public constant CLUTCH = 64;
-    uint256 public constant HUSTLE = 128;
-    uint256 public constant BUG_CATCHER = 256;
 
     struct BadgeHolder {
         uint256 badgeTypes; // Bitmask of badge types
