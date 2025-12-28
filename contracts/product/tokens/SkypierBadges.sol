@@ -2,13 +2,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+// import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../../interfaces/IERC6551Registry.sol";
 import "../../interfaces/ITokenBoundAccount.sol";
 
-contract SkypierBadges is ERC1155, AccessControl, ERC165 {
+contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
     // Badge IDs
     uint256 public constant CLIENT_BADGE = 0;
     uint256 public constant OPERATOR_BADGE = 1;

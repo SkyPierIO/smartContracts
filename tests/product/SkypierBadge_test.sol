@@ -8,7 +8,10 @@ import "../../contracts/product/tokens/SkypierBadges.sol";
 import "../../contracts/lib/ERC6551Registry.sol";
 import "../../contracts/lib/TokenBoundAccount.sol";
 
-contract SkypierBadgesTest {
+contract SkypierBadgesTest is UUPSProxyBaseTest {
+    SkypierBadge public skypierBadge;
+    SkypierBadge public newVersion;
+
     SkypierBadges badges;
     ERC6551Registry registry;
     TokenBoundAccount tokenBoundAccountImplementation;
@@ -19,6 +22,15 @@ contract SkypierBadgesTest {
     address validator = TestsAccounts.getAccount(3);
 
     function beforeAll() public {
+        super.beforeAll();
+
+        // Deploy initial version
+        skypierBadge = new SkypierBadge();
+        skypierBadge.initialize();
+
+        // Deploy new version for upgrade testing
+        newVersion = new SkypierBadge();
+
         // Deploy registry
         vm.prank(admin);
         registry = new ERC6551Registry();
@@ -30,6 +42,83 @@ contract SkypierBadgesTest {
         // Deploy SkypierBadges with registry
         vm.prank(admin);
         badges = new SkypierBadges(address(registry), address(tokenBoundAccountImplementation));
+    }
+
+    function testInitialDeployment() public {
+        Assert.notEqual(
+            address(0),
+            address(skypierBadge),
+            "SkypierBadge should be deployed"
+        );
+
+        // Test initial state
+        Assert.equal(
+            admin,
+            skypierBadge.owner(),
+            "Admin should be the owner"
+        );
+    }
+
+    function testBadgeMinting() public {
+        // Test minting functionality
+        vm.prank(admin);
+        skypierBadge.mint(admin, 1);
+
+        Assert.equal(
+            admin,
+            skypierBadge.ownerOf(1),
+            "Admin should own badge #1"
+        );
+    }
+
+    function testUpgradeFunctionality() public {
+        // Execute upgrade
+        vm.prank(admin);
+        skypierBadge.upgradeTo(address(newVersion));
+
+        // Verify upgrade
+        Assert.equal(
+            address(newVersion),
+            skypierBadge.getImplementation(),
+            "Implementation should be updated"
+        );
+    }
+
+    function testUpgradeAccessControl() public {
+        testUpgradeAccessControl(address(skypierBadge));
+    }
+
+    function testStoragePreservation() public {
+        // Mint badge before upgrade
+        vm.prank(admin);
+        skypierBadge.mint(admin, 1);
+
+        // Upgrade
+        vm.prank(admin);
+        skypierBadge.upgradeTo(address(newVersion));
+
+        // Verify badge still exists
+        Assert.equal(
+            admin,
+            skypierBadge.ownerOf(1),
+            "Badges should be preserved after upgrade"
+        );
+    }
+
+    function testFunctionalityAfterUpgrade() public {
+        // Upgrade first
+        vm.prank(admin);
+        skypierBadge.upgradeTo(address(newVersion));
+
+        // Test that functions still work
+        vm.prank(admin);
+        skypierBadge.mint(admin, 2);
+
+        Assert.equal(
+            admin,
+            skypierBadge.ownerOf(2),
+            "Functions should work after upgrade"
+        );
     }
 
     function testMintClientBadge() public {

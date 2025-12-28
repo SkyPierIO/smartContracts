@@ -8,8 +8,12 @@ import "../../contracts/product/SkypierVPN.sol";
 import "../../contracts/product/tokens/SkypierBadges.sol";
 import "../../contracts/lib/ERC6551Registry.sol";
 import "../../contracts/lib/TokenBoundAccount.sol";
+import "../UUPSProxyBaseTest.sol";
 
-contract SkypierVPNTest {
+contract SkypierVPNTest is UUPSProxyBaseTest {
+    SkypierVPN public skypierVPN;
+    SkypierVPN public newVersion;
+
     SkypierVPN vpn;
     SkypierBadges badges;
     ERC6551Registry registry;
@@ -26,6 +30,15 @@ contract SkypierVPNTest {
         // Deploy registry
         vm.prank(admin);
         registry = new ERC6551Registry();
+
+        super.beforeAll();
+
+        // Deploy initial version
+        skypierVPN = new SkypierVPN();
+        skypierVPN.initialize();
+
+        // Deploy new version for upgrade testing
+        newVersion = new SkypierVPN();
 
         // Deploy TokenBoundAccount implementation
         vm.prank(admin);
@@ -46,6 +59,73 @@ contract SkypierVPNTest {
         vpn.grantRole(vpn.QA_BADGE(), qa);
         vm.prank(admin);
         badges.grantRole(badges.DEFAULT_ADMIN_ROLE(), admin);
+    }
+
+    function testInitialDeployment() public {
+        Assert.notEqual(
+            address(0),
+            address(skypierVPN),
+            "SkypierVPN should be deployed"
+        );
+
+        // Test initial state
+        Assert.equal(
+            admin,
+            skypierVPN.owner(),
+            "Admin should be the owner"
+        );
+    }
+
+    function testUpgradeFunctionality() public {
+        // Execute upgrade
+        vm.prank(admin);
+        skypierVPN.upgradeTo(address(newVersion));
+
+        // Verify upgrade
+        Assert.equal(
+            address(newVersion),
+            skypierVPN.getImplementation(),
+            "Implementation should be updated"
+        );
+    }
+
+    function testUpgradeAccessControl() public {
+        testUpgradeAccessControl(address(skypierVPN));
+    }
+
+    function testStoragePreservation() public {
+        // Set some state before upgrade
+        vm.prank(admin);
+        skypierVPN.setConfigParameter(1, "test");
+
+        // Upgrade
+        vm.prank(admin);
+        skypierVPN.upgradeTo(address(newVersion));
+
+        // Verify state preserved
+        (uint256 paramId, string memory paramValue) = skypierVPN.getConfigParameter(1);
+        Assert.equal(
+            "test",
+            paramValue,
+            "State should be preserved after upgrade"
+        );
+    }
+
+    function testFunctionalityAfterUpgrade() public {
+        // Upgrade first
+        vm.prank(admin);
+        skypierVPN.upgradeTo(address(newVersion));
+
+        // Test that functions still work
+        vm.prank(admin);
+        skypierVPN.setConfigParameter(2, "test2");
+
+        (uint256 paramId, string memory paramValue) = skypierVPN.getConfigParameter(2);
+        Assert.equal(
+            "test2",
+            paramValue,
+            "Functions should work after upgrade"
+        );
     }
 
     function testApplyAsOperator() public {
