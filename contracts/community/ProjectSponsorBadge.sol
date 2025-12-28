@@ -1,6 +1,6 @@
 // contracts/community/ProjectSponsorBadge.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/token/ERC3525/ERC3525.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -18,6 +18,13 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
 
     mapping(uint256 => ProjectInfo) private _projectInfo;
 
+    event BadgeMinted(
+        uint256 indexed tokenId,
+        string projectId,
+        address sponsor,
+        uint256 expiry
+    );
+
     constructor() ERC3525("https://skypier.io/sponsor/{id}.json") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -33,9 +40,12 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
         string memory projectId,
         uint256 duration
     ) external {
+        require(to != address(0), "Invalid recipient");
+        require(duration > 0, "Duration must be > 0");
+        if (duration == 0) duration = BADGE_EXPIRY; // Default to 52 weeks
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
 
-        uint256 tokenId = _nextTokenId++;
+        uint256 tokenId = keccak256(abi.encodePacked(projectId, sponsor));
         uint256 expiry = block.timestamp + duration;
 
         _mint(to, tokenId, 1, expiry, "");
@@ -47,7 +57,9 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
             sponsor: to
         });
 
-        emit TransferSingle(msg.sender, address(0), to, tokenId, 1);
+        // Emit in mintSponsorBadge:
+        emit BadgeMinted(tokenId, projectId, to, expiry);
+
     }
 
     /**
@@ -62,10 +74,11 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
     /**
      * @dev Checks if a badge is still valid
      * @param tokenId ID of the token
-     * @return bool True if badge is still valid
+     * @return bool True if badge is still valid, false otherwise
      */
     function isValidBadge(uint256 tokenId) public view returns (bool) {
-        return block.timestamp <= getExpiry(tokenId);
+        ProjectInfo memory info = _projectInfo[tokenId];
+        return block.timestamp <= info.endTime;
     }
 
     /**
