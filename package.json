@@ -4,8 +4,9 @@
     "hardhat": "^2.22.17"
   },
   "dependencies": {
-    "@chainlink/contracts": "^1.3.0",
-    "@openzeppelin/contracts": "^5.2.0",
-    "@openzeppelin/contracts-upgradeable": "^5.2.0"
+    "@chainlink/contracts": "^1.2.0",
+    "@openzeppelin/contracts": "^5.4.0",
+    "@openzeppelin/contracts-upgradeable": "^5.2.0",
+    "@solvprotocol/erc-3525": "^1.5.0"
   }
 }
