@@ -159,30 +159,21 @@ contracts/
 
 ## **4. Token Requirements**
 
-| Name | Token Standard | Purpose & definition | How to get this | **Expiry** (ERC-7818) | Max Allowed  | Transferable (ERC-1238) | Soulbound (ERC-5114) | Attributes | Parent Token | Phase |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Client (Customer) Token`  | ERC1155 | Product Deployment Contracts — Customer access | Pay Skypier | Preset  | N/A | Multisig | False |  | N/A | 1 |
-| `Operator Token` | ERC1155 | Product Deployment Contracts — Node hosting | applyAsOperator() → `Validator Token` /`Employee Level Badge`→ ClaimOperatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address
-ValidationCount uint16
-PeerID string
-ActiveSince timestamp | N/A | 1 |
-| `Validator Token`  | ERC1155 | Product Deployment Contracts — Node validation | applyAsValidator() → `Employee Level Badge`  →  ClaimValidatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address
-AddedBy address
-ActiveSince timestamp | N/A | 1 |
-| `Builder Token`  | ERC1155 | Internal Development Contract — Employee roles | addBuilder() by `Admin Badge` or `Project Sponsor Badge` | Preset  | N/A | Multisig | True | EthAddr address
-AddedBy address
-ActiveSince timestamp | N/A | 1 |
-| `Investor Token`  | ERC1155 | Internal Development Contract — Investor access | ClaimInvestorNFTBadge()  | Preset  | N/A | Multisig | False | EthAddr address
-AddedBy address
-ActiveSince timestamp | N/A | 2 |
-| `Beta Tester Badge`  | ERC1155-SFT | Pre-release access |  | Inherited | 1 | Inherited | Inherited |  | `Client (Customer) Token`  | 3 |
-| `Employee Level Badge`  | ERC20 / ERC1155-SFT | Employee rewards/ Internal testing | Mintable 78 weeks after Role token has been assigned | Expires in 78 weeks after Role token expires | 6 | Inherited | Inherited |  | `Builder Token`  | 2 |
-| `Developer Badge`  | ERC1155-SFT | Internal developer access |  | Preset  | 1 | Inherited | Inherited |  | `Builder Token`  | 2 |
-| `Admin Badge`  | ERC721 |  |  | No expiration | N/A | Inherited | Inherited |  | `Builder Token`  | 1 |
-| `Annualized Badges` | ERC1155-SFT | Recognition (MVP, Mentor, etc.) | Reward from recognition  | Expires in 52 weeks | 1 per type | Inherited | Inherited |  | `Builder Token`  | 3 |
-| `Project Sponsor Badge` | ERC3525-SFT | Someone who proposed an accepted project/issue, as the PM/TPM/Financial Sponsor | Once DAO is established, anyone in the community can propose, vote, and financially sponsor on approved projects, once a project is approved anyone with `Employee Level Badge` can apply to be the TPM | Expires in 52 weeks after accepting the delivery | No Limit | Inherited | Inherited |  | Applicable all Non-badge ERC1155 tokens | 4 |
-| `Proof of Identity Badge` | ERC721 |  |  | No expiration | 1 | Multisig | True |  | Applicable all Non-badge ERC1155 tokens | 2 |
-| `Skypier Token` | ERC20 |  |  | No expiration | No Limit | True | False |  | N/A | 1 |
+| Name | Token Standard | Purpose & definition | How to get this | **Expiry** (ERC-7818) | Max Allowed  | Transferable (ERC-1238) | Soulbound (ERC-5114) | Attributes | Parent Token |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `Client (Customer) Token`  | ERC1155 | Product Deployment Contracts — Customer access | Pay Skypier | Preset  | N/A | Multisig | False | TBD | N/A |
+| `Operator Token` | ERC1155 | Product Deployment Contracts — Node hosting | applyAsOperator() → `Validator Token` /`Employee Level Badge`→ ClaimOperatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, ValidationCount uint16, PeerID string, ActiveSince timestamp | N/A |
+| `Validator Token`  | ERC1155 | Product Deployment Contracts — Node validation | applyAsValidator() → `Employee Level Badge`  →  ClaimValidatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
+| `Builder Token`  | ERC1155 | Internal Development Contract — Employee roles | addBuilder() by `Admin Badge` or `Project Sponsor Badge` | Preset  | N/A | Multisig | True | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
+| `Investor Token`  | ERC1155 | Internal Development Contract — Investor access | ClaimInvestorNFTBadge()  | Preset  | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
+| `Beta Tester Badge`  | ERC1155-SFT | Pre-release access | Issue by `Employee Level Badge` | Inherited | 1 | Inherited | Inherited | Inherited | `Client (Customer) Token`  |
+| `Employee Level Badge`  | ERC20 / ERC1155-SFT | Employee rewards/ Internal testing | Mintable 78 weeks after Role token has been assigned | Expires in 78 weeks after Role token expires | 6 | Inherited | Inherited | Inherited | `Builder Token`  |
+| `Developer Badge`  | ERC1155-SFT | Internal developer access | Issue by `Admin Badge`  | Preset  | 1 | Inherited | Inherited | Inherited | `Builder Token`  |
+| `Admin Badge`  | ERC721 |  | N/A | No expiration | N/A | Inherited | Inherited | Inherited | `Builder Token`  |
+| `Annualized Badges` | ERC1155-SFT | Recognition (MVP, Mentor, etc.) | Reward from recognition  | Expires in 52 weeks | 1 per type | Inherited | Inherited | Inherited | `Builder Token`  |
+| `Project Sponsor Badge` | ERC3525-SFT | Someone who proposed an accepted project/issue, as the PM/TPM/Financial Sponsor | Once DAO is established, anyone in the community can propose, vote, and financially sponsor on approved projects, once a project is approved anyone with `Employee Level Badge` can apply to be the TPM | Expires in 52 weeks after accepting the delivery | No Limit | Inherited | Inherited | Inherited | Applicable all Non-badge ERC1155 tokens |
+| `Proof of Identity Badge` | ERC721 | Proof of humanity and identity | TBD | No expiration | 1 | Multisig | True | Inherited | Applicable all Non-badge ERC1155 tokens |
+| `Skypier Token` | ERC20 | Vote and use the network | Purchase | No expiration | No Limit | True | False | N/A | N/A |
 
 ---
 
@@ -201,3 +192,4 @@ ActiveSince timestamp | N/A | 2 |
 | --- | --- | --- |
 | **Community DAO** | Feature prioritization | Approval → Quadratic |
 | **Internal DAO** | Employee equity & culture | Approval → Quadratic |
+
