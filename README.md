@@ -1,7 +1,4 @@
-# smartContracts
-
 For **Solidity unit testing**, it's enabled from remix's plugin. 
-
 
 # **Skypier Smart Contract Architecture - Product Requirement Document**
 
@@ -192,4 +189,5 @@ contracts/
 | --- | --- | --- |
 | **Community DAO** | Feature prioritization | Approval → Quadratic |
 | **Internal DAO** | Employee equity & culture | Approval → Quadratic |
+
 
