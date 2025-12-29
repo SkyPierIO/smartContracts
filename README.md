@@ -16,40 +16,40 @@ This document outlines the requirements for restructuring Skypier’s smart cont
 
 ```bash
 contracts/
-├── interfaces/                  # Shared interfaces
-│   ├── IAccessControl.sol       # Access control (roles, permissions)
-│   ├── IBadges.sol              # Badge-related interfaces
-│   ├── IPaymentPool.sol          # Payment pool interactions
-│   ├── ISkypierVPN.sol          # VPN node operations
-│   ├── ITokenBoundAccount.sol   # ERC-6551 TokenBoundAccount
-│   └── IERC6551Registry.sol      # ERC-6551 registry
+├── interfaces/                    # Shared interfaces
+│   ├── IAccessControl.sol         # Access control (roles, permissions)
+│   ├── IBadges.sol                # Badge-related interfaces
+│   ├── IPaymentPool.sol           # Payment pool interactions
+│   ├── ISkypierVPN.sol            # VPN node operations
+│   ├── ITokenBoundAccount.sol     # ERC-6551 TokenBoundAccount
+│   └── IERC6551Registry.sol       # ERC-6551 registry
 │
-├── lib/                         # Shared libraries
-│   ├── TokenBoundAccount.sol     # ERC-6551 implementation
-│   └── ERC6551Registry.sol       # ERC-6551 registry
+├── lib/                           # Shared libraries
+│   ├── TokenBoundAccount.sol      # ERC-6551 implementation
+│   └── ERC6551Registry.sol        # ERC-6551 registry
 │
-├── product/                     # Product Deployment Contracts (Customer-facing)
+├── product/                       # Product Deployment Contracts (Customer-facing)
 │   ├── tokens/
-│   │   ├── SkypierToken.sol      # ERC-20 (updated for token gating)
-│   │   └── SkypierBadges.sol     # ERC-1155 (Client, Operator, Validator)
-│   ├── SkypierVPN.sol            # Node onboarding (updated roles)
-│   ├── PaymentPool.sol           # Payment distribution (updated logic)
-│   └── custom/                   # Customizable deployment layer (future)
-│       └── CustomDeployment.sol  # Placeholder for deployment customization
+│   │   ├── SkypierToken.sol       # ERC-20 (updated for token gating)
+│   │   └── SkypierBadges.sol      # ERC-1155 (Client, Operator, Validator)
+│   ├── SkypierVPN.sol             # Node onboarding (updated roles)
+│   ├── PaymentPool.sol            # Payment distribution (updated logic)
+│   └── custom/                    # Customizable deployment layer (future)
+│       └── CustomDeployment.sol   # Placeholder for deployment customization
 │
-├── internal/                    # Internal Development Contracts (Team-facing)
+├── internal/                      # Internal Development Contracts (Team-facing)
 │   ├── tokens/
-│   │   ├── BuilderToken.sol      # ERC-1155 (Builder role + Employee Level Badge)
-│   │   ├── InvestorToken.sol     # ERC-1155 (Investor access)
-│   │   ├── ContributionBadges.sol # ERC-20 (rewards)
-│   │   ├── AdminBadge.sol        # ERC-721 (Admin role)
-│   │   └── AnnualizedBadges.sol      # ERC-1155-SFT (recognition badges)
-│   ├── InternalDAO.sol           # Internal governance (placeholder)
-│   └── HumanResources.sol        # Builder pool management
+│   │   ├── BuilderToken.sol       # ERC-1155 (Builder role + Employee Level Badge)
+│   │   ├── InvestorToken.sol      # ERC-1155 (Investor access)
+│   │   ├── EmployeeLevelBadge.sol # ERC-20 (rewards)
+│   │   ├── AdminBadge.sol         # ERC-721 (Admin role)
+│   │   └── AnnualizedBadges.sol   # ERC-1155-SFT (recognition badges)
+│   ├── InternalDAO.sol            # Internal governance (placeholder)
+│   └── HumanResources.sol         # Builder pool management
 │
-└── community/                   # Community DAO Contracts
-    ├── CommunityDAO.sol          # Community governance (placeholder)
-    └── ProjectSponsorBadge.sol   # ERC-3525 (project sponsorship)
+└── community/                     # Community DAO Contracts
+    ├── CommunityDAO.sol           # Community governance (placeholder)
+    └── ProjectSponsorBadge.sol    # ERC-3525 (project sponsorship)
 ```
 
 ---
@@ -111,7 +111,7 @@ contracts/
     - `InternalDAO.sol`: Placeholder for internal governance (e.g., OZ Governor, snapshot voting).
     - `HumanResources.sol`:
         - Manages `BuilderToken` issuance/revocation.
-        - Distributes `Wallet(Builder Pool)` funds biweekly based on `ContributionBadges`.
+        - Distributes `Wallet(Builder Pool)` funds biweekly based on `Employee Level Badge`.
         - Mints `AnnualizedBadges` via peer recognition (top 3 holders per category).
 
 ---
@@ -189,5 +189,6 @@ contracts/
 | --- | --- | --- |
 | **Community DAO** | Feature prioritization | Approval → Quadratic |
 | **Internal DAO** | Employee equity & culture | Approval → Quadratic |
+
 
 
