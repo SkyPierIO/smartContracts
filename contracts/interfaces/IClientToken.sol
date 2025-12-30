@@ -25,6 +25,6 @@ interface IClientToken {
     function getExpiry(uint256 tokenId) external view returns (uint64);
 
     // --- Token IDs (optional, but useful for clarity) ---
-    function CLIENT_TOKEN() external view returns (uint256);
-    function BETA_TESTER_TOKEN() external view returns (uint256);
+    function CLIENT_ROLE() external view returns (uint256);
+    function BETA_TESTER_BADGE() external view returns (uint256);
 }

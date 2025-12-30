@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 /**
  * @title ClientToken
  * @dev ERC-1155 Soulbound Tokens for Skypier VPN clients.
- *      - CLIENT_BADGE (default): Granted after payment.
+ *      - CLIENT_ROLE (default): Granted after payment.
  *      - BETA_TESTER_BADGE: Semi-fungible, transferable via multisig (future).
  */
 contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981 {
@@ -55,40 +55,40 @@ contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981
     // --- Core Functions ---
 
     /**
-     * @dev Issues a client badge to a user (called by SkypierVPN).
+     * @dev Issues a client token to a user (called by SkypierVPN).
      * @param to Recipient address.
-     * @param tokenId CLIENT_BADGE or BETA_TESTER_BADGE.
+     * @param tokenId CLIENT_ROLE or BETA_TESTER_BADGE.
      * @param amount Quantity (usually 1).
      * @param expiryTimestamp 0 for no expiry (BETA_TESTER_BADGE only).
      */
-    function issueBadge(
+    function issueToken(
         address to,
         uint256 tokenId,
         uint256 amount,
         uint64 expiryTimestamp
     ) external {
         require(msg.sender == minter, "ClientToken: caller is not minter");
-        require(tokenId == CLIENT_BADGE || tokenId == BETA_TESTER_BADGE, "Invalid tokenId");
+        require(tokenId == CLIENT_ROLE || tokenId == BETA_TESTER_BADGE, "Invalid tokenId");
 
         if (tokenId == BETA_TESTER_BADGE) {
             expiryDates[tokenId] = expiryTimestamp;
         }
 
         _mint(to, tokenId, amount, "");
-        emit BadgeIssued(to, tokenId, amount, _getMetadata(tokenId, expiryTimestamp));
+        emit TokenIssued(to, tokenId, amount, _getMetadata(tokenId, expiryTimestamp));
     }
 
     /**
-     * @dev Revokes a badge (admin-only).
+     * @dev Revokes a token (admin-only).
      */
-    function revokeBadge(
+    function revokeToken(
         address from,
         uint256 tokenId,
         uint256 amount
     ) external {
         require(msg.sender == admin, "ClientToken: caller is not admin");
         _burn(from, tokenId, amount);
-        emit BadgeRevoked(from, tokenId, amount);
+        emit TokenRevoked(from, tokenId, amount);
     }
 
     // --- ERC-1155 Overrides ---
@@ -132,7 +132,7 @@ contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981
 
     // --- View Functions ---
     function isValidClient(address user) public view returns (bool) {
-        return balanceOf(user, CLIENT_BADGE) > 0;
+        return balanceOf(user, CLIENT_ROLE) > 0;
     }
 
     function isBetaTester(address user) public view returns (bool) {
@@ -152,8 +152,8 @@ contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981
         pure
         returns (string memory)
     {
-        if (tokenId == CLIENT_BADGE) {
-            return "Skypier Client Badge (No Expiry)";
+        if (tokenId == CLIENT_ROLE) {
+            return "Skypier Client Token (No Expiry)";
         } else if (tokenId == BETA_TESTER_BADGE) {
             return
                 string.concat(

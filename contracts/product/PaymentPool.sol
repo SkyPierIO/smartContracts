@@ -1,13 +1,15 @@
 // contracts/product/PaymentPool.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/AccessControlUpgradeable.sol";
+// import "../interfaces/IBadges.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "./interfaces/IClientToken.sol";
 
-contract PaymentPool is AccessControl {
+contract PaymentPool is AccessControlUpgradeable {
     using SafeMath for uint256;
 
     // Roles
