@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./interfaces/IClientToken.sol";
 
 contract PaymentPool is AccessControl {
     using SafeMath for uint256;
@@ -24,7 +25,9 @@ contract PaymentPool is AccessControl {
 
     // Tokens
     IERC20 public skypierToken;
-    IERC20 public clientToken;
+    // address public clientToken;
+    IClientToken public clientToken;
+    uint256 public paymentAmount; // Amount required to receive CLIENT_BADGE
 
     // Operator and Validator tracking
     struct Participant {
@@ -56,7 +59,7 @@ contract PaymentPool is AccessControl {
         address payable _developerPool
     ) {
         skypierToken = IERC20(_skypierToken);
-        clientToken = IERC20(_clientToken);
+        clientToken = IERC1155(_clientToken);
         networkPool = _networkPool;
         builderPool = _builderPool;
         developerPool = _developerPool;
@@ -64,6 +67,34 @@ contract PaymentPool is AccessControl {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _setupRole(PAYMENT_MANAGER, msg.sender);
         lastDistributionTime = block.timestamp;
+    }
+
+    // --- Events ---
+    event ClientBadgeIssued(address indexed user, uint256 amount);
+
+    constructor(
+        address _clientToken,
+        address _paymentToken,
+        uint256 _paymentAmount
+    ) {
+        clientToken = IClientToken(_clientToken);
+        paymentToken = IERC20(_paymentToken);
+        paymentAmount = _paymentAmount;
+    }
+
+    /**
+     * @dev Pay to receive a CLIENT_BADGE (called by users).
+     */
+    function payForAccess() external {
+        require(
+            IERC20(paymentToken).transferFrom(msg.sender, address(this), paymentAmount),
+            "Payment failed"
+        );
+
+        // Issue CLIENT_BADGE (no expiry)
+        clientToken.issueBadge(msg.sender, clientToken.CLIENT_BADGE(), 1, 0);
+
+        emit ClientBadgeIssued(msg.sender, paymentAmount);
     }
 
     /**
