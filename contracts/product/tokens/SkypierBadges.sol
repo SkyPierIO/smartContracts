@@ -6,17 +6,15 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-// import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../../interfaces/IERC6551Registry.sol";
 import "../../interfaces/ITokenBoundAccount.sol";
 
-contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
+contract SkypierBadges is ERC1155Upgradeable, AccessControlUpgradeable, ERC165 {
     // Badge IDs
-    uint256 public constant CLIENT_BADGE = 0;
-    uint256 public constant OPERATOR_BADGE = 1;
-    uint256 public constant VALIDATOR_BADGE = 2;
+    uint256 public constant CLIENT_ROLE = 0;
+    uint256 public constant OPERATOR_ROLE = 1;
+    uint256 public constant VALIDATOR_ROLE = 2;
     uint256 public constant BETA_TESTER_BADGE = 3;
 
     // ERC6551 Registry
@@ -45,7 +43,7 @@ contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
      */
     function mintClientBadge(address to) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, CLIENT_BADGE, "");
+        _mintWithAccount(to, CLIENT_ROLE, "");
     }
 
     /**
@@ -55,7 +53,7 @@ contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
      */
     function mintOperatorBadge(address to, string memory peerId) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, OPERATOR_BADGE, peerId);
+        _mintWithAccount(to, OPERATOR_ROLE, peerId);
     }
 
     /**
@@ -64,7 +62,7 @@ contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
      */
     function mintValidatorBadge(address to) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, VALIDATOR_BADGE, "");
+        _mintWithAccount(to, VALIDATOR_ROLE, "");
     }
 
     /**
@@ -129,7 +127,7 @@ contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
      */
     function getOperatorPeerId(uint256 tokenId) external view returns (string memory) {
         require(_exists(tokenId), "Token does not exist");
-        require(_getBadgeType(tokenId) == OPERATOR_BADGE, "Not an operator badge");
+        require(_getBadgeType(tokenId) == OPERATOR_ROLE, "Not an operator badge");
 
         bytes memory data = _tokenData[tokenId];
         return abi.decode(data, (string));
@@ -141,9 +139,9 @@ contract SkypierBadges is ERC1155Upgradeable, AccessControl, ERC165 {
     function _getBadgeType(uint256 tokenId) internal view returns (uint256) {
         // In a real implementation, you would need to track which badge type each token ID belongs to
         // This is a simplified version that assumes the first token of each type has a specific ID range
-        if (tokenId <= 10000) return CLIENT_BADGE;
-        else if (tokenId <= 20000) return OPERATOR_BADGE;
-        else if (tokenId <= 30000) return VALIDATOR_BADGE;
+        if (tokenId <= 10000) return CLIENT_ROLE;
+        else if (tokenId <= 20000) return OPERATOR_ROLE;
+        else if (tokenId <= 30000) return VALIDATOR_ROLE;
         else return BETA_TESTER_BADGE;
     }
 
