@@ -3,18 +3,18 @@ pragma solidity ^0.8.20;
 
 interface IClientToken {
     // --- Events ---
-    event BadgeIssued(address indexed account, uint256 indexed tokenId, uint256 amount, string metadata);
-    event BadgeRevoked(address indexed account, uint256 indexed tokenId, uint256 amount);
+    event TokenIssued(address indexed account, uint256 indexed tokenId, uint256 amount, string metadata);
+    event TokenRevoked(address indexed account, uint256 indexed tokenId, uint256 amount);
 
     // --- Core Functions ---
-    function issueBadge(
+    function issueToken(
         address to,
         uint256 tokenId,
         uint256 amount,
         uint64 expiryTimestamp
     ) external;
 
-    function revokeBadge(
+    function revokeToken(
         address from,
         uint256 tokenId,
         uint256 amount
@@ -25,6 +25,6 @@ interface IClientToken {
     function getExpiry(uint256 tokenId) external view returns (uint64);
 
     // --- Token IDs (optional, but useful for clarity) ---
-    function CLIENT_BADGE() external view returns (uint256);
-    function BETA_TESTER_BADGE() external view returns (uint256);
+    function CLIENT_TOKEN() external view returns (uint256);
+    function BETA_TESTER_TOKEN() external view returns (uint256);
 }
