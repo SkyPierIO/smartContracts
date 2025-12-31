@@ -41,7 +41,7 @@ contract AnnualizedBadges is ERC1155, AccessControl, ReentrancyGuard {
         builderTokenId = _builderTokenId;
     }
 
-    modifier onlyBuilderTokenHolder() {  // QA Badge Only
+    modifier onlyBuilderTokenHolder() {  // EMPLOYEE_BADGE Only
         require(
             builderToken.balanceOf(msg.sender, builderTokenId) > 0,
             "Must hold Builder Token"

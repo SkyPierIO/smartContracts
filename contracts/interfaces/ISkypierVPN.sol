@@ -96,19 +96,19 @@ interface ISkypierVPN is IAccessControl {
     /// @param peerId The peer ID of the node to deregister
     function deregisterNode(string calldata peerId) external;
 
-    /// @notice Revoke an operator (called by builders with QA badge)
+    /// @notice Revoke an operator (called by builders with Employee badge)
     /// @param operator Address of the operator to revoke
     function revokeOperator(address operator) external;
 
-    /// @notice Remove a validator (called by builders with QA badge)
+    /// @notice Remove a validator (called by builders with Employee badge)
     /// @param validator Address of the validator to remove
     function removeValidator(address validator) external;
 
-    /// @notice Assign beta tester badge (called by builders with QA badge)
+    /// @notice Assign beta tester badge (called by builders with Employee badge)
     /// @param recipient Address to receive the badge
     function assignBetaTesterBadge(address recipient) external;
 
-    /// @notice Revoke beta tester badge (called by builders with QA badge)
+    /// @notice Revoke beta tester badge (called by builders with Employee badge)
     /// @param recipient Address to revoke the badge from
     function revokeBetaTesterBadge(address recipient) external;
 

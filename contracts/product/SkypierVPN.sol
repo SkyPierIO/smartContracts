@@ -2,17 +2,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../interfaces/ITokenBoundAccount.sol";
 import "./tokens/SkypierBadges.sol";
+import "../lib/Roles.sol";
 
-contract SkypierVPN is AccessControl, ERC165 {
+/**
+ * Defines the implementation of the core functionality for node management, operator/validator onboarding,
+ * and interactions with the payment system and token badges.
+ */
+contract SkypierVPN is UUPSUpgradeable, AccessControlUpgradeable, ERC165 {
     using SafeMath for uint256;
 
     // Roles
-    bytes32 public constant BUILDER_ROLE = keccak256("BUILDER_ROLE");
-    bytes32 public constant QA_BADGE = keccak256("QA_BADGE");
+    bytes32 public constant OPERATOR = Roles.OPERATOR_ROLE;
+    bytes32 public constant VALIDATOR = Roles.VALIDATOR_ROLE;
+    bytes32 public constant BUILDER_ROLE = Roles.BUILDER_ROLE;
+    bytes32 public constant EMPLOYEE_BADGE = Roles.EMPLOYEE_BADGE;
+    // bytes32 public constant NODE_ADMIN = keccak256("NODE_ADMIN");
 
     // Contracts
     SkypierBadges public badges;
@@ -60,12 +71,12 @@ contract SkypierVPN is AccessControl, ERC165 {
     }
 
     /**
-     * @dev Validate an operator (called by validators or builders with QA badge)
+     * @dev Validate an operator (called by validators or builders with EMPLOYEE badge)
      * @param _operator Address of the operator to validate
      * @param _peerId PeerID of the operator's node
      */
     function validateOperator(address _operator, string memory _peerId) external {
-        require(hasRole(QA_BADGE, msg.sender) || hasRole(BUILDER_ROLE, msg.sender), "Not authorized");
+        require(hasRole(EMPLOYEE_BADGE, msg.sender) || hasRole(BUILDER_ROLE, msg.sender), "Not authorized");
 
         bool isOnWaitlist = false;
         for (uint256 i = 0; i < operatorWaitlist.length; i++) {
@@ -126,11 +137,11 @@ contract SkypierVPN is AccessControl, ERC165 {
     }
 
     /**
-     * @dev Revoke an operator (called by builders with QA badge)
+     * @dev Revoke an operator (called by builders with EMPLOYEE_BADGE badge)
      * @param _operator Address of the operator to revoke
      */
     function revokeOperator(address _operator) external {
-        require(hasRole(QA_BADGE, msg.sender) || hasRole(BUILDER_ROLE, msg.sender), "Not authorized");
+        require(hasRole(EMPLOYEE_BADGE, msg.sender) || hasRole(BUILDER_ROLE, msg.sender), "Not authorized");
         require(nodes[_operator].isActive, "Operator not active");
 
         revokedOperators[_operator] = true;

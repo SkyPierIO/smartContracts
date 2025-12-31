@@ -9,13 +9,26 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "../../interfaces/IERC6551Registry.sol";
 import "../../interfaces/ITokenBoundAccount.sol";
+import "../lib/Roles.sol";
 
 contract SkypierBadges is ERC1155Upgradeable, AccessControlUpgradeable, ERC165 {
+    using Roles for address;
+    
     // Badge IDs
-    uint256 public constant CLIENT_ROLE = 0;
-    uint256 public constant OPERATOR_ROLE = 1;
-    uint256 public constant VALIDATOR_ROLE = 2;
-    uint256 public constant BETA_TESTER_BADGE = 3;
+    uint256 public constant CLIENT_TOKEN_ID = Roles.CLIENT_TOKEN_ID;
+    uint256 public constant OPERATOR_TOKEN_ID = Roles.OPERATOR_TOKEN_ID;
+    uint256 public constant VALIDATOR_TOKEN_ID = Roles.VALIDATOR_TOKEN_ID;
+    uint256 public constant BETA_TESTER_BADGE_ID = Roles.BETA_TESTER_BADGE_ID;
+
+    // function mintBadge(address user, uint256 badgeId) external {
+    //     _safeMint(user, badgeId);
+    //     if (badgeId == _ROLE) {
+    //         user.grantRole(_ROLE);
+    //     }
+    // }
+    // function isOperator(address user) public view returns (bool) {
+    //     return user.hasRole(OPERATOR_ROLE) || ownerOf(OPERATOR_TOKEN_ID) == user;
+    // }
 
     // ERC6551 Registry
     IERC6551Registry public erc6551Registry;

@@ -1,17 +1,22 @@
-// contracts/internal/tokens/ContributionBadges.sol
+// contracts/internal/tokens/EmployeeLevelBadge.sol
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
+
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
-contract ContributionBadges is ERC20, AccessControl, ReentrancyGuard{
+contract EmployeeLevelBadge is ERC20, AccessControlUpgradeable, ReentrancyGuard{
     uint256 public constant WALLET_CAP = 6;
     uint256 public constant BADGE_EXPIRY = 78 weeks;
 
@@ -32,7 +37,7 @@ contract ContributionBadges is ERC20, AccessControl, ReentrancyGuard{
     event ExpiryExtended(uint256 indexed tokenId, uint256 newExpiryTime);
 
     constructor(address _builderToken, uint256 _builderTokenId)
-        ERC1155("https://skypier.io/contribution/{id}.json")
+        ERC1155("https://skypier.io/employee/{id}.json")
     {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
         builderToken = IERC1155(_builderToken);
@@ -69,12 +74,12 @@ contract ContributionBadges is ERC20, AccessControl, ReentrancyGuard{
     }
 
     /**
-     * @dev Mints contribution badges to a builder
+     * @dev Mints Employee Level Badge to a builder
      * @param to Address to receive badges
      * @param amount Number of badges to mint (max 6)
      * @param customExpiryDuration 
      */
-    function mintContributionBadge(
+    function mintEmployeeLevelBadge(
         address to,
         uint256 amount,
         uint256 customExpiryDuration

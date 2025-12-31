@@ -14,7 +14,7 @@ contract PaymentPool is AccessControlUpgradeable {
 
     // Roles
     bytes32 private constant PAYMENT_MANAGER = keccak256("PAYMENT_MANAGER");
-    bytes32 private constant BUILDER_ROLE = keccak256("BUILDER_ROLE");
+    bytes32 public constant BUILDER_ROLE = Roles.BUILDER_ROLE;
 
     // Payment intervals
     uint256 public constant BIOWEEKLY_INTERVAL = 14 days;

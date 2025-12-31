@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+/**
+ * @dev Interface for the Skypier Badges contract.
+ * Defines the core functionality for for all Skypier ancillary badges.
+ */
 interface IBadges {
     // Badge types
     struct BadgeAttributes {
