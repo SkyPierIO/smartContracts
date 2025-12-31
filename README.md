@@ -39,9 +39,9 @@ contracts/
 │
 ├── internal/                      # Internal Development Contracts (Team-facing)
 │   ├── tokens/
-│   │   ├── BuilderToken.sol       # ERC-1155 (Builder role + Employee Level Badge)
+│   │   ├── BuilderToken.sol       # ERC-1155 (Builder role + Employee Badge)
 │   │   ├── InvestorToken.sol      # ERC-1155 (Investor access)
-│   │   ├── EmployeeLevelBadge.sol # ERC-20 (rewards)
+│   │   ├── EmployeeBadge.sol      # ERC-20 (rewards)
 │   │   ├── AdminBadge.sol         # ERC-721 (Admin role)
 │   │   └── AnnualizedBadges.sol   # ERC-1155-SFT (recognition badges)
 │   ├── InternalDAO.sol            # Internal governance (placeholder)
@@ -99,10 +99,10 @@ contracts/
 ### **Contracts:**
 
 - **Tokens**:
-    - `BuilderToken.sol` (ERC-1155 + ERC-5114): Soulbound, holds up to 6 `EMPLOYEE_LEVEL_BADGE`a
+    - `BuilderToken.sol` (ERC-1155 + ERC-5114): Soulbound, holds up to 6 `EMPLOYEE_BADGE`a
         - Can have `DEVELOPER_BADGE`
     - `InvestorToken.sol` (ERC-1155): For investors (non-transferable).
-    - `EmployeeLevelBadge.sol` (ERC-20):
+    - `EmployeeBadge.sol` (ERC-20):
         - No expiry by default and expires after 78 weeks when the person leaves Skypier, expiry by `AdminBadge`.
         - 6 max → Biweekly payouts from `Builder Pool`.
     - `AdminBadge.sol` (ERC-721): Multisig-controlled (Clement & Ting).
@@ -111,7 +111,7 @@ contracts/
     - `InternalDAO.sol`: Placeholder for internal governance (e.g., OZ Governor, snapshot voting).
     - `HumanResources.sol`:
         - Manages `BuilderToken` issuance/revocation.
-        - Distributes `Wallet(Builder Pool)` funds biweekly based on `Employee Level Badge`.
+        - Distributes `Wallet(Builder Pool)` funds biweekly based on `Employee Badge`.
         - Mints `AnnualizedBadges` via peer recognition (top 3 holders per category).
 
 ---
@@ -159,16 +159,16 @@ contracts/
 | Name | Token Standard | Purpose & definition | How to get this | **Expiry** (ERC-7818) | Max Allowed  | Transferable (ERC-1238) | Soulbound (ERC-5114) | Attributes | Parent Token |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `Client (Customer) Token`  | ERC1155 | Product Deployment Contracts — Customer access | Pay Skypier | Preset  | N/A | Multisig | False | TBD | N/A |
-| `Operator Token` | ERC1155 | Product Deployment Contracts — Node hosting | applyAsOperator() → `Validator Token` /`Employee Level Badge`→ ClaimOperatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, ValidationCount uint16, PeerID string, ActiveSince timestamp | N/A |
-| `Validator Token`  | ERC1155 | Product Deployment Contracts — Node validation | applyAsValidator() → `Employee Level Badge`  →  ClaimValidatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
+| `Operator Token` | ERC1155 | Product Deployment Contracts — Node hosting | applyAsOperator() → `Validator Token` /`Employee Badge`→ ClaimOperatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, ValidationCount uint16, PeerID string, ActiveSince timestamp | N/A |
+| `Validator Token`  | ERC1155 | Product Deployment Contracts — Node validation | applyAsValidator() → `Employee Badge`  →  ClaimValidatorNFTBadge() | No expiration | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
 | `Builder Token`  | ERC1155 | Internal Development Contract — Employee roles | addBuilder() by `Admin Badge` or `Project Sponsor Badge` | Preset  | N/A | Multisig | True | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
 | `Investor Token`  | ERC1155 | Internal Development Contract — Investor access | ClaimInvestorNFTBadge()  | Preset  | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
-| `Beta Tester Badge`  | ERC1155-SFT | Pre-release access | Issue by `Employee Level Badge` | Inherited | 1 | Inherited | Inherited | Inherited | `Client (Customer) Token`  |
-| `Employee Level Badge`  | ERC20 / ERC1155-SFT | Employee rewards/ Internal testing | Mintable 78 weeks after Role token has been assigned | Expires in 78 weeks after Role token expires | 6 | Inherited | Inherited | Inherited | `Builder Token`  |
+| `Beta Tester Badge`  | ERC1155-SFT | Pre-release access | Issue by `Employee Badge` | Inherited | 1 | Inherited | Inherited | Inherited | `Client (Customer) Token`  |
+| `Employee Badge`  | ERC20 / ERC1155-SFT | Employee rewards/ Internal testing | Mintable 78 weeks after Role token has been assigned | Expires in 78 weeks after Role token expires | 6 | Inherited | Inherited | Inherited | `Builder Token`  |
 | `Developer Badge`  | ERC1155-SFT | Internal developer access | Issue by `Admin Badge`  | Preset  | 1 | Inherited | Inherited | Inherited | `Builder Token`  |
 | `Admin Badge`  | ERC721 |  | N/A | No expiration | N/A | Inherited | Inherited | Inherited | `Builder Token`  |
 | `Annualized Badges` | ERC1155-SFT | Recognition (MVP, Mentor, etc.) | Reward from recognition  | Expires in 52 weeks | 1 per type | Inherited | Inherited | Inherited | `Builder Token`  |
-| `Project Sponsor Badge` | ERC3525-SFT | Someone who proposed an accepted project/issue, as the PM/TPM/Financial Sponsor | Once DAO is established, anyone in the community can propose, vote, and financially sponsor on approved projects, once a project is approved anyone with `Employee Level Badge` can apply to be the TPM | Expires in 52 weeks after accepting the delivery | No Limit | Inherited | Inherited | Inherited | Applicable all Non-badge ERC1155 tokens |
+| `Project Sponsor Badge` | ERC3525-SFT | Someone who proposed an accepted project/issue, as the PM/TPM/Financial Sponsor | Once DAO is established, anyone in the community can propose, vote, and financially sponsor on approved projects, once a project is approved anyone with `Employee Badge` can apply to be the TPM | Expires in 52 weeks after accepting the delivery | No Limit | Inherited | Inherited | Inherited | Applicable all Non-badge ERC1155 tokens |
 | `Proof of Identity Badge` | ERC721 | Proof of humanity and identity | TBD | No expiration | 1 | Multisig | True | Inherited | Applicable all Non-badge ERC1155 tokens |
 | `Skypier Token` | ERC20 | Vote and use the network | Purchase | No expiration | No Limit | True | False | N/A | N/A |
 
@@ -178,7 +178,7 @@ contracts/
 
 1. **Customers** → Pay to `Payment Pool` (ERC20).
 2. **Operators** → Biweekly payouts from `Network Pool`.
-3. **Builders** → Biweekly payouts from `Builder Pool` (based on `Employee Level Badge`).
+3. **Builders** → Biweekly payouts from `Builder Pool` (based on `Employee Badge`).
 4. **Investors** → ROI from `Builder Pool` (post-employee payouts).
 
 ---
@@ -189,6 +189,7 @@ contracts/
 | --- | --- | --- |
 | **Community DAO** | Feature prioritization | Approval → Quadratic |
 | **Internal DAO** | Employee equity & culture | Approval → Quadratic |
+
 
 
 
