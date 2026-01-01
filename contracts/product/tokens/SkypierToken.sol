@@ -21,4 +21,6 @@ contract SkypierToken is ERC20Upgradeable, AccessControlUpgradeable, UUPSUpgrade
     function upgradeTo(address newImplementation) public virtual override onlyRole(DEFAULT_ADMIN_ROLE) {
         _upgradeTo(newImplementation);
     }
+
+    function transfer(address recipient, uint256 amount) external returns (bool);
 }
