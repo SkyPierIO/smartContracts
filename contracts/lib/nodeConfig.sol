@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract NodeConfigContract is ERC721 {
+contract NodeConfigContract is Initializable, ERC721Upgradeable, UUPSUpgradeable, OwnableUpgradeable {
     mapping(uint256 => string) public nodeConfig; // Mapping to store the latest config of node
 
-    constructor(
-        string memory name,
-        string memory symbol
-    ) ERC721(name, symbol) {}
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    function updateNodeConfig(
-        uint256 tokenId,
-        string memory newConfig
-    ) external {
+    function initialize(string memory name, string memory symbol) public initializer {
+        __ERC721_init(name, symbol);
+        __UUPSUpgradeable_init();
+        __Ownable_init(msg.sender);
+    }
+
+    function updateNodeConfig(uint256 tokenId, string memory newConfig) external {
         require(ownerOf(tokenId) == msg.sender, "Caller is not owner");
 
         nodeConfig[tokenId] = newConfig;
@@ -22,4 +28,6 @@ contract NodeConfigContract is ERC721 {
     }
 
     event NodeConfigUpdated(uint256 indexed tokenId, string newConfig);
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

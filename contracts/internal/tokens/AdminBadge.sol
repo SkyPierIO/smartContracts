@@ -1,33 +1,45 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.24;
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {BaseAccessControlledUpgradeableToken} from "../../lib/BaseAccessControlledUpgradeableToken.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 
-contract AdminBadge is ERC721, AccessControlUpgradeable, ReentrancyGuard {
-    uint256 private _tokenIdCounter;
-    IERC1155 public immutable builderToken; 
-    uint256 public immutable builderTokenId; 
+
+/**
+ * @title AdminBadge
+ * @dev Upgradeable ERC1155-based admin badge; minted only by builder token holders.
+ */
+contract AdminBadge is Initializable, BaseAccessControlledUpgradeableToken {
+    uint256 private _nextTokenId;
+    address public builderToken;
+    uint256 public builderTokenId;
 
     event RoleGranted(address indexed account, bytes32 indexed role);
     event RoleRevoked(address indexed account, bytes32 indexed role);
 
-    constructor(address _builderToken, uint256 _builderTokenId) 
-        ERC721("Skypier Admin Badge", "SAB") 
-    {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        builderToken = IERC1155(_builderToken);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(
+        string memory uri,
+        address _builderToken,
+        uint256 _builderTokenId,
+        address admin
+    ) public initializer {
+        __BaseAccessControlledUpgradeableToken_init(uri);
+        builderToken = _builderToken;
         builderTokenId = _builderTokenId;
+        if (admin != msg.sender) {
+            _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        }
     }
 
     modifier onlyBuilderTokenHolder() {
         require(
-            builderToken.balanceOf(msg.sender, builderTokenId) > 0,  // <-- Check ERC1155 balance
+            IERC1155(builderToken).balanceOf(msg.sender, builderTokenId) > 0,
             "Must hold Builder Token"
         );
         _;
@@ -37,34 +49,28 @@ contract AdminBadge is ERC721, AccessControlUpgradeable, ReentrancyGuard {
         external
         onlyBuilderTokenHolder
         onlyRole(DEFAULT_ADMIN_ROLE)
-        nonReentrant
     {
         require(to != address(0), "Cannot mint to zero address");
-        uint256 tokenId = _tokenIdCounter++;
-        _safeMint(to, tokenId);
+        uint256 tokenId = _nextTokenId++;
+        _safeMintWithRole(to, tokenId, 1, "");
         grantRole(DEFAULT_ADMIN_ROLE, to);
         emit RoleGranted(to, DEFAULT_ADMIN_ROLE);
     }
 
-    function burnAdminBadge(uint256 tokenId)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        nonReentrant
-    {
-        address owner = ownerOf(tokenId);
-        _burn(tokenId);
-        revokeRole(DEFAULT_ADMIN_ROLE, owner);
-        emit RoleRevoked(owner, DEFAULT_ADMIN_ROLE);
+    function burnAdminBadge(address from, uint256 tokenId) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _safeBurnWithRole(from, tokenId, 1);
+        revokeRole(DEFAULT_ADMIN_ROLE, from);
+        emit RoleRevoked(from, DEFAULT_ADMIN_ROLE);
     }
 
     function _beforeTokenTransfer(
+        address /*operator*/,
         address from,
         address to,
-        uint256 tokenId
-    ) internal virtual override {
-        super._beforeTokenTransfer(from, to, tokenId);
-        if (from != address(0)) {
-            require(to == address(0) || to == from, "Admin badge is soulbound");
-        }
+        uint256[] memory /*ids*/,
+        uint256[] memory /*amounts*/,
+        bytes memory /*data*/
+    ) internal {
+        require(from == address(0) || to == address(0), "Admin badge is soulbound");
     }
 }

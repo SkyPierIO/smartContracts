@@ -1,13 +1,10 @@
-// contracts/internal/InternalDAO.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/governance/Governor.sol";
-
-contract InternalDAO is Governor {
-    constructor(address token)
-        Governor(token)
-    {
-        // Placeholder for internal governance
-    }
+/**
+ * @title InternalDAO
+ * @dev Placeholder - Governor pattern with OZ 5.2.0 has compatibility issues
+ * TODO: Implement when OZ library issues are resolved
+ */
+contract InternalDAO {
 }

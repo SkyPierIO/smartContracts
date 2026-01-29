@@ -1,15 +1,27 @@
 // contracts/product/PaymentPoolHelper.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.24;
 
 import "./PaymentPool.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract PaymentPoolHelper {
-    PaymentPool public paymentPool;
+contract PaymentPoolHelper is Initializable, UUPSUpgradeable, OwnableUpgradeable {
+    address payable public paymentPool;
 
-    constructor(address _paymentPool) {
-        paymentPool = PaymentPool(_paymentPool);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
+
+    function initialize(address payable _paymentPool) public initializer {
+        __UUPSUpgradeable_init();
+        __Ownable_init(msg.sender);
+        paymentPool = _paymentPool;
+    }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     /**
      * @dev Gets all active operator addresses
@@ -18,7 +30,7 @@ contract PaymentPoolHelper {
     function getActiveOperators() external view returns (address[] memory) {
         // In a real implementation, you would need to track active operators
         // This is a simplified version that returns the keys set in PaymentPool
-        return paymentPool.operatorsKeys();
+        return PaymentPool(paymentPool).getOperatorsKeys();
     }
 
     /**
@@ -27,7 +39,7 @@ contract PaymentPoolHelper {
      */
     function getActiveValidators() external view returns (address[] memory) {
         // In a real implementation, you would need to track active validators
-        return paymentPool.validatorsKeys();
+        return PaymentPool(paymentPool).getValidatorsKeys();
     }
 
     /**
@@ -36,7 +48,7 @@ contract PaymentPoolHelper {
      */
     function getActiveBuilders() external view returns (address[] memory) {
         // In a real implementation, you would need to track active builders
-        return paymentPool.buildersKeys();
+        return PaymentPool(paymentPool).getBuildersKeys();
     }
 
     /**
@@ -47,8 +59,8 @@ contract PaymentPoolHelper {
         address[] memory _validatorKeys,
         address[] memory _builderKeys
     ) external {
-        paymentPool.updateMappingKeys("operators", _operatorKeys);
-        paymentPool.updateMappingKeys("validators", _validatorKeys);
-        paymentPool.updateMappingKeys("builders", _builderKeys);
+        PaymentPool(paymentPool).updateMappingKeys("operators", _operatorKeys);
+        PaymentPool(paymentPool).updateMappingKeys("validators", _validatorKeys);
+        PaymentPool(paymentPool).updateMappingKeys("builders", _builderKeys);
     }
 }

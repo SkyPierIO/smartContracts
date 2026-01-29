@@ -1,17 +1,15 @@
-// contracts/product/PaymentPool.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/access/AccessControlUpgradeable.sol";
-// import "../interfaces/IBadges.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./interfaces/IClientToken.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IClientToken} from "../interfaces/IClientToken.sol";
+import {Roles} from "../lib/Roles.sol";
 
-contract PaymentPool is AccessControlUpgradeable {
-    using SafeMath for uint256;
-
+contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     // Roles
     bytes32 private constant PAYMENT_MANAGER = keccak256("PAYMENT_MANAGER");
     bytes32 public constant BUILDER_ROLE = Roles.BUILDER_ROLE;
@@ -26,8 +24,8 @@ contract PaymentPool is AccessControlUpgradeable {
     address payable public developerPool;
 
     // Tokens
-    IERC20 public skypierToken;
-    // address public clientToken;
+    address public skypierToken;
+    address public paymentToken;
     IClientToken public clientToken;
     uint256 public paymentAmount; // Amount required to receive CLIENT_BADGE
 
@@ -53,35 +51,39 @@ contract PaymentPool is AccessControlUpgradeable {
     event ClientDeposit(address indexed client, uint256 amount);
     event FundsWithdrawn(address indexed wallet, uint256 amount, string walletType);
 
-    constructor(
-        address _skypierToken,
-        address _clientToken,
-        address payable _networkPool,
-        address payable _builderPool,
-        address payable _developerPool
-    ) {
-        skypierToken = IERC20(_skypierToken);
-        clientToken = IERC1155(_clientToken);
-        networkPool = _networkPool;
-        builderPool = _builderPool;
-        developerPool = _developerPool;
-
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setupRole(PAYMENT_MANAGER, msg.sender);
-        lastDistributionTime = block.timestamp;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
     // --- Events ---
     event ClientBadgeIssued(address indexed user, uint256 amount);
 
-    constructor(
+    function initialize(
+        address _skypierToken,
         address _clientToken,
         address _paymentToken,
-        uint256 _paymentAmount
-    ) {
+        address payable _networkPool,
+        address payable _builderPool,
+        address payable _developerPool,
+        uint256 _paymentAmount,
+        address admin
+    ) public initializer {
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+
+        skypierToken = _skypierToken;
         clientToken = IClientToken(_clientToken);
-        paymentToken = IERC20(_paymentToken);
+        paymentToken = _paymentToken;
         paymentAmount = _paymentAmount;
+
+        networkPool = _networkPool;
+        builderPool = _builderPool;
+        developerPool = _developerPool;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin == address(0) ? msg.sender : admin);
+        _grantRole(PAYMENT_MANAGER, admin == address(0) ? msg.sender : admin);
+        lastDistributionTime = block.timestamp;
     }
 
     /**
@@ -94,7 +96,7 @@ contract PaymentPool is AccessControlUpgradeable {
         );
 
         // Issue CLIENT_BADGE (no expiry)
-        clientToken.issueBadge(msg.sender, clientToken.CLIENT_BADGE(), 1, 0);
+        clientToken.issueToken(msg.sender, clientToken.CLIENT_ROLE(), 1, 0);
 
         emit ClientBadgeIssued(msg.sender, paymentAmount);
     }
@@ -104,8 +106,8 @@ contract PaymentPool is AccessControlUpgradeable {
      * @param amount Amount of client tokens to deposit
      */
     function depositClientPayment(uint256 amount) external {
-        require(clientToken.transferFrom(msg.sender, address(this), amount), "Transfer failed");
-        totalClientDeposits = totalClientDeposits.add(amount);
+        require(IERC20(paymentToken).transferFrom(msg.sender, address(this), amount), "Transfer failed");
+        totalClientDeposits += amount;
         emit ClientDeposit(msg.sender, amount);
     }
 
@@ -162,8 +164,8 @@ contract PaymentPool is AccessControlUpgradeable {
         require(operators[_operator].isActive, "Operator not active");
 
         // Simple metric: dataVolume * duration as contribution score
-        uint256 contribution = dataVolume.mul(duration);
-        operators[_operator].totalContribution = operators[_operator].totalContribution.add(contribution);
+        uint256 contribution = dataVolume * duration;
+        operators[_operator].totalContribution = operators[_operator].totalContribution + contribution;
     }
 
     /**
@@ -175,7 +177,7 @@ contract PaymentPool is AccessControlUpgradeable {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(validators[_validator].isActive, "Validator not active");
 
-        validators[_validator].totalContribution = validators[_validator].totalContribution.add(validationCount);
+        validators[_validator].totalContribution = validators[_validator].totalContribution + validationCount;
     }
 
     /**
@@ -187,7 +189,7 @@ contract PaymentPool is AccessControlUpgradeable {
         require(hasRole(BUILDER_ROLE, msg.sender) || hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(builders[_builder].isActive, "Builder not active");
 
-        builders[_builder].totalContribution = builders[_builder].totalContribution.add(contributionScore);
+        builders[_builder].totalContribution = builders[_builder].totalContribution + contributionScore;
     }
 
     /**
@@ -195,7 +197,7 @@ contract PaymentPool is AccessControlUpgradeable {
      */
     function distributeNetworkPayments() external {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
-        require(block.timestamp >= lastDistributionTime.add(BIOWEEKLY_INTERVAL), "Too soon for distribution");
+        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
 
         uint256 networkPoolBalance = address(networkPool).balance;
         require(networkPoolBalance > 0, "Insufficient funds in network pool");
@@ -210,7 +212,7 @@ contract PaymentPool is AccessControlUpgradeable {
         for (uint256 i = 0; i < operatorsKeys.length; i++) {
             address operator = operatorsKeys[i];
             if (operators[operator].isActive) {
-                totalOperatorContributions = totalOperatorContributions.add(operators[operator].totalContribution);
+                totalOperatorContributions = totalOperatorContributions + operators[operator].totalContribution;
                 activeOperators[i] = operator;
             }
         }
@@ -219,21 +221,21 @@ contract PaymentPool is AccessControlUpgradeable {
         for (uint256 i = 0; i < validatorsKeys.length; i++) {
             address validator = validatorsKeys[i];
             if (validators[validator].isActive) {
-                totalValidatorContributions = totalValidatorContributions.add(validators[validator].totalContribution);
+                totalValidatorContributions = totalValidatorContributions + validators[validator].totalContribution;
                 activeValidators[i] = validator;
             }
         }
 
         // Allocate 70% to operators, 30% to validators
-        uint256 operatorAllocation = networkPoolBalance.mul(70).div(100);
-        uint256 validatorAllocation = networkPoolBalance.sub(operatorAllocation);
+        uint256 operatorAllocation = (networkPoolBalance * 70) / 100;
+        uint256 validatorAllocation = networkPoolBalance - operatorAllocation;
 
         // Distribute to operators
         if (totalOperatorContributions > 0 && activeOperators.length > 0) {
             for (uint256 i = 0; i < activeOperators.length; i++) {
                 address operator = activeOperators[i];
                 if (operators[operator].isActive) {
-                    uint256 share = operatorAllocation.mul(operators[operator].totalContribution).div(totalOperatorContributions);
+                    uint256 share = (operatorAllocation * operators[operator].totalContribution) / totalOperatorContributions;
                     if (share > 0) {
                         operators[operator].lastPayment = block.timestamp;
                         operators[operator].totalContribution = 0; // Reset for next period
@@ -242,7 +244,7 @@ contract PaymentPool is AccessControlUpgradeable {
                         payable(operator).transfer(share);
                         emit PaymentDistributed(operator, share, "Operator");
 
-                        totalNetworkPayments = totalNetworkPayments.add(share);
+                        totalNetworkPayments = totalNetworkPayments + share;
                     }
                 }
             }
@@ -253,7 +255,7 @@ contract PaymentPool is AccessControlUpgradeable {
             for (uint256 i = 0; i < activeValidators.length; i++) {
                 address validator = activeValidators[i];
                 if (validators[validator].isActive) {
-                    uint256 share = validatorAllocation.mul(validators[validator].totalContribution).div(totalValidatorContributions);
+                    uint256 share = (validatorAllocation * validators[validator].totalContribution) / totalValidatorContributions;
                     if (share > 0) {
                         validators[validator].lastPayment = block.timestamp;
                         validators[validator].totalContribution = 0; // Reset for next period
@@ -262,7 +264,7 @@ contract PaymentPool is AccessControlUpgradeable {
                         payable(validator).transfer(share);
                         emit PaymentDistributed(validator, share, "Validator");
 
-                        totalNetworkPayments = totalNetworkPayments.add(share);
+                        totalNetworkPayments = totalNetworkPayments + share;
                     }
                 }
             }
@@ -276,7 +278,7 @@ contract PaymentPool is AccessControlUpgradeable {
      */
     function distributeBuilderPayments() external {
         require(hasRole(BUILDER_ROLE, msg.sender) || hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
-        require(block.timestamp >= lastDistributionTime.add(BIOWEEKLY_INTERVAL), "Too soon for distribution");
+        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
 
         uint256 builderPoolBalance = address(builderPool).balance;
         require(builderPoolBalance > 0, "Insufficient funds in builder pool");
@@ -289,7 +291,7 @@ contract PaymentPool is AccessControlUpgradeable {
         for (uint256 i = 0; i < buildersKeys.length; i++) {
             address builder = buildersKeys[i];
             if (builders[builder].isActive) {
-                totalBuilderContributions = totalBuilderContributions.add(builders[builder].totalContribution);
+                totalBuilderContributions = totalBuilderContributions + builders[builder].totalContribution;
                 activeBuilders[i] = builder;
             }
         }
@@ -299,7 +301,7 @@ contract PaymentPool is AccessControlUpgradeable {
             for (uint256 i = 0; i < activeBuilders.length; i++) {
                 address builder = activeBuilders[i];
                 if (builders[builder].isActive) {
-                    uint256 share = builderPoolBalance.mul(builders[builder].totalContribution).div(totalBuilderContributions);
+                    uint256 share = (builderPoolBalance * builders[builder].totalContribution) / totalBuilderContributions;
                     if (share > 0) {
                         builders[builder].lastPayment = block.timestamp;
                         builders[builder].totalContribution = 0; // Reset for next period
@@ -308,7 +310,7 @@ contract PaymentPool is AccessControlUpgradeable {
                         payable(builder).transfer(share);
                         emit PaymentDistributed(builder, share, "Builder");
 
-                        totalBuilderPayments = totalBuilderPayments.add(share);
+                        totalBuilderPayments = totalBuilderPayments + share;
                     }
                 }
             }
@@ -390,7 +392,7 @@ contract PaymentPool is AccessControlUpgradeable {
      * @dev Internal helper to get all keys from a mapping
      * Note: This is a simplified version - in production you'd need a more efficient approach
      */
-    function getMappingKeys(mapping(address => Participant) storage map)
+    function getMappingKeys(mapping(address => Participant) storage /*map*/)
         internal
         view
         returns (address[] memory)
@@ -425,10 +427,32 @@ contract PaymentPool is AccessControlUpgradeable {
         }
     }
 
+    // Explicit getters that return the full arrays (for helper tooling)
+    function getOperatorsKeys() external view returns (address[] memory) {
+        return operatorsKeys;
+    }
+
+    function getValidatorsKeys() external view returns (address[] memory) {
+        return validatorsKeys;
+    }
+
+    function getBuildersKeys() external view returns (address[] memory) {
+        return buildersKeys;
+    }
+
     /**
      * @dev Fallback receive function to accept ETH
      */
     receive() external payable {
         // Funds can be sent directly to this contract
     }
+
+    /**
+     * @dev UUPS upgrade authorization
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {}
 }

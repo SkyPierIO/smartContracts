@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.24;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
@@ -44,9 +44,9 @@ contract ValidatorToken is
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setupRole(MINTER_ROLE, msg.sender);
-        _setupRole(BURNER_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+        _grantRole(BURNER_ROLE, msg.sender);
     }
 
     function mintValidatorBadge(address to, uint256 stakingAmount)
@@ -88,8 +88,7 @@ contract ValidatorToken is
         uint256[] memory ids,
         uint256[] memory amounts,
         bytes memory data
-    ) internal override {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
+    ) internal {
         require(from == address(0) || to == address(0), "Validator token is soulbound");
     }
 

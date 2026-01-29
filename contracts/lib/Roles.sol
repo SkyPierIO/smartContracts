@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
 // ========== Roles ==========
 /**
  * @dev Library to define all Roles and Badges in Skypier.

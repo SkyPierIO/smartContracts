@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.24;
 
 /**
  * @title ExpiryManagement
@@ -37,6 +37,19 @@ library ExpiryManagement {
     ) internal {
         info.expiryTime = uint64(block.timestamp + durationInSeconds);
         info.isActive = true;
+        emit ExpirySet(0, info.expiryTime);
+    }
+
+    /**
+     * @dev Set expiry time using an absolute timestamp.
+     */
+    function setExpiryAbsolute(
+        ExpiryInfo storage info,
+        uint64 absoluteTimestamp
+    ) internal {
+        info.expiryTime = absoluteTimestamp;
+        info.isActive = true;
+        emit ExpirySet(0, info.expiryTime);
     }
 
     /**

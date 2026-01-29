@@ -1,22 +1,37 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "@openzeppelin/contracts/access/OwnableUupsUpgradeable.sol";
-import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ExpiryManagement} from "../../lib/ExpiryManagement.sol";
 
 /**
  * @title ClientToken
- * @dev ERC-1155 Soulbound Tokens for Skypier VPN clients.
- *      - CLIENT_ROLE (default): Granted after payment.
- *      - BETA_TESTER_BADGE: Semi-fungible, transferable via multisig (future).
+ * @dev ERC-1155 Soulbound Tokens for Skypier VPN clients with UUPS upgrade capability
  */
-contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981 {
+contract ClientToken is
+    Initializable,
+    ERC1155Upgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable,
+    IERC2981
+{
     using Strings for uint256;
 
-    // --- Events ---
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+
+    uint256 public constant CLIENT_BADGE = 0;
+    uint256 public constant BETA_TESTER_BADGE = 1;
+
+    using ExpiryManagement for ExpiryManagement.ExpiryInfo;
+    mapping(uint256 => ExpiryManagement.ExpiryInfo) private expiries;
+
     event BadgeIssued(
         address indexed account,
         uint256 indexed tokenId,
@@ -29,148 +44,84 @@ contract ClientToken is ERC1155, OwnableUupsUpgradeable, ERC1155Supply, IERC2981
         uint256 amount
     );
 
-    // --- Token Types ---
-    uint256 public constant CLIENT_BADGE = 0;       // Default client access
-    uint256 public constant BETA_TESTER_BADGE = 1; // Transferable via multisig
-
-    // --- Roles ---
-    address public minter;  // SkypierVPN contract or multisig
-    address public admin;   // AdminBadge holder (for revocations)
-
-    // --- Expiry (ERC-7818) ---
-    mapping(uint256 => uint64) public expiryDates; // 0 = no expiry
-
-    // // --- ERC-2981 Royalties ---
-    // uint96 private _royaltyFee;
-    // address private _royaltyRecipient;
-
-    constructor(address _minter, address _admin)
-        ERC1155("https://skypier.io/metadata/{id}")
-    {
-        minter = _minter;
-        admin = _admin;
-        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    // --- Core Functions ---
+    function initialize(address _minter, address _admin) public initializer {
+        __ERC1155_init("https://skypier.io/metadata/{id}");
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
 
-    /**
-     * @dev Issues a client token to a user (called by SkypierVPN).
-     * @param to Recipient address.
-     * @param tokenId CLIENT_ROLE or BETA_TESTER_BADGE.
-     * @param amount Quantity (usually 1).
-     * @param expiryTimestamp 0 for no expiry (BETA_TESTER_BADGE only).
-     */
-    function issueToken(
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, _minter);
+        _grantRole(BURNER_ROLE, _admin);
+    }
+
+    function mint(
         address to,
         uint256 tokenId,
         uint256 amount,
-        uint64 expiryTimestamp
-    ) external {
-        require(msg.sender == minter, "ClientToken: caller is not minter");
-        require(tokenId == CLIENT_ROLE || tokenId == BETA_TESTER_BADGE, "Invalid tokenId");
-
-        if (tokenId == BETA_TESTER_BADGE) {
-            expiryDates[tokenId] = expiryTimestamp;
-        }
-
+        string memory metadata
+    ) external onlyRole(MINTER_ROLE) {
+        require(to != address(0), "Invalid recipient");
         _mint(to, tokenId, amount, "");
-        emit TokenIssued(to, tokenId, amount, _getMetadata(tokenId, expiryTimestamp));
+        emit BadgeIssued(to, tokenId, amount, metadata);
     }
 
-    /**
-     * @dev Revokes a token (admin-only).
-     */
-    function revokeToken(
+    function burn(
         address from,
         uint256 tokenId,
         uint256 amount
-    ) external {
-        require(msg.sender == admin, "ClientToken: caller is not admin");
+    ) external onlyRole(BURNER_ROLE) {
         _burn(from, tokenId, amount);
-        emit TokenRevoked(from, tokenId, amount);
+        emit BadgeRevoked(from, tokenId, amount);
     }
 
-    // --- ERC-1155 Overrides ---
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(ERC1155, IERC2981)
-        returns (bool)
+    function setExpiry(uint256 tokenId, uint64 expiryTime) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        expiries[tokenId].setExpiryAbsolute(expiryTime);
+    }
+
+    function isExpired(uint256 tokenId) public view returns (bool) {
+        return expiries[tokenId].isExpired();
+    }
+
+    function timeRemaining(uint256 tokenId) public view returns (uint256) {
+        return expiries[tokenId].getTimeRemaining();
+    }
+
+    function _update(
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory values
+    ) internal override {
+        require(from == address(0) || to == address(0), "Client token is soulbound");
+        super._update(from, to, ids, values);
+    }
+
+    function royaltyInfo(uint256 /*tokenId*/, uint256 /*salePrice*/)
+        external
+        pure
+        override
+        returns (address receiver, uint256 royaltyAmount)
     {
-        return
-            super.supportsInterface(interfaceId) ||
-            interfaceId == type(IERC2981).interfaceId;
+        return (address(0), 0);
     }
 
-    // // --- ERC-2981 Royalties ---
-    // function royaltyInfo(uint256 tokenId, uint256 salePrice)
-    //     external
-    //     view
-    //     override
-    //     returns (address receiver, uint256 royaltyAmount)
-    // {
-    //     royaltyAmount = salePrice * _royaltyFee / 10_000;
-    //     receiver = _royaltyRecipient;
-    // }
-
-    // function setRoyaltyInfo(address recipient, uint96 fee)
-    //     external
-    //     onlyOwner
-    // {
-    //     _royaltyRecipient = recipient;
-    //     _royaltyFee = fee;
-    // }
-
-    // --- Upgradeability ---
     function _authorizeUpgrade(address newImplementation)
         internal
         override
-        onlyOwner
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {}
 
-    // --- View Functions ---
-    function isValidClient(address user) public view returns (bool) {
-        return balanceOf(user, CLIENT_ROLE) > 0;
-    }
-
-    function isBetaTester(address user) public view returns (bool) {
-        uint256 expiry = expiryDates[BETA_TESTER_BADGE];
-        return
-            balanceOf(user, BETA_TESTER_BADGE) > 0 &&
-            (expiry == 0 || block.timestamp < expiry);
-    }
-
-    function getExpiry(uint256 tokenId) public view returns (uint64) {
-        return expiryDates[tokenId];
-    }
-
-    // --- Internal ---
-    function _getMetadata(uint256 tokenId, uint64 expiry)
-        internal
-        pure
-        returns (string memory)
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable, IERC165)
+        returns (bool)
     {
-        if (tokenId == CLIENT_ROLE) {
-            return "Skypier Client Token (No Expiry)";
-        } else if (tokenId == BETA_TESTER_BADGE) {
-            return
-                string.concat(
-                    "Skypier Beta Tester Badge (Expires: ",
-                    expiry.toString(),
-                    ")"
-                );
-        }
-        return "";
-    }
-
-    // --- Access Control ---
-    function setMinter(address newMinter) external onlyOwner {
-        minter = newMinter;
-    }
-
-    function setAdmin(address newAdmin) external onlyOwner {
-        admin = newAdmin;
+        return interfaceId == type(IERC2981).interfaceId || super.supportsInterface(interfaceId);
     }
 }

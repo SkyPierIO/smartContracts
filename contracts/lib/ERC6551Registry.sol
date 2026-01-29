@@ -1,23 +1,19 @@
 // contracts/lib/ERC6551Registry.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.24;
 
 import "../interfaces/IERC6551Registry.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract ERC6551Registry is IERC6551Registry {
-    using Counters for Counters.Counter;
     using ECDSA for bytes32;
 
-    Counters.Counter private _accountNonce;
+    // nonce removed - deterministic compute uses provided salt
 
     bytes32 private constant ACCOUNT_CREATION_CODE_HASH =
         bytes32(0x6352211e274072c715c503f48d805c548b9817d71d6ab2a3ebc593d4628e7ee9);
 
-    constructor() {
-        _accountNonce.increment();
-    }
+    constructor() {}
 
     function createAccount(
         address implementation,
@@ -26,7 +22,7 @@ contract ERC6551Registry is IERC6551Registry {
         uint256 tokenId,
         uint256 salt
     ) external override returns (address) {
-        address account = computeAccount(
+        address accountAddr = computeAccount(
             implementation,
             chainId,
             tokenContract,
@@ -34,11 +30,11 @@ contract ERC6551Registry is IERC6551Registry {
             salt
         );
 
-        require(account.code.length == 0, "Account already deployed");
+        require(accountAddr.code.length == 0, "Account already deployed");
 
         emit ERC6551AccountCreated(
             msg.sender,
-            account,
+            accountAddr,
             chainId,
             implementation,
             tokenContract,
@@ -46,7 +42,7 @@ contract ERC6551Registry is IERC6551Registry {
             salt
         );
 
-        return account;
+        return accountAddr;
     }
 
     function account(
@@ -82,7 +78,7 @@ contract ERC6551Registry is IERC6551Registry {
                 chainId,
                 tokenContract,
                 tokenId,
-                _accountNonce.current()
+                salt
             )
         );
 

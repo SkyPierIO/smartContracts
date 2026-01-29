@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract NodeStatusContract is ERC721Enumerable {
+contract NodeStatusContract is Initializable, ERC721Upgradeable, UUPSUpgradeable, OwnableUpgradeable {
     struct Node {
         string peerId;
         string status; // Can be a string json
@@ -12,54 +14,45 @@ contract NodeStatusContract is ERC721Enumerable {
 
     mapping(uint256 => Node) public nodes;
 
-    constructor(
-        string memory name,
-        string memory symbol
-    ) ERC721(name, symbol) {}
+    uint256 private _tokenIdCounter;
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC721Enumerable) returns (bool) {
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(string memory name, string memory symbol, address owner) public initializer {
+        __ERC721_init(name, symbol);
+        __UUPSUpgradeable_init();
+        __Ownable_init(owner);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 
-    // Assumes that the sender is the owner of the token being minted
-    function mint(string memory peerId, string memory status) external {
-        uint256 tokenId = totalSupply() + 1;
+    function mint(string memory peerId, string memory status) external onlyOwner {
+        uint256 tokenId = ++_tokenIdCounter;
         _safeMint(msg.sender, tokenId);
         nodes[tokenId] = Node(peerId, status);
     }
 
-    function updateStatus(
-        uint256 tokenId,
-        string memory peerId,
-        string memory newStatus
-    ) external {
-        // Checks whether the caller is the owner or approved to operate the token
-        require(
-            _isApprovedOrOwner(msg.sender, tokenId),
-            "Caller is not approved or owner"
-        );
-        // Verifies that the peerId provided matches the PeerID associated with the token
-        require(
-            keccak256(abi.encodePacked(nodes[tokenId].peerId)) ==
-                keccak256(abi.encodePacked(peerId)),
-            "PeerID does not match"
-        );
+    function updateStatus(uint256 tokenId, string memory peerId, string memory newStatus) external {
+        require(_isApprovedOrOwner(msg.sender, tokenId), "Caller is not approved or owner");
+        require(keccak256(abi.encodePacked(nodes[tokenId].peerId)) == keccak256(abi.encodePacked(peerId)), "PeerID does not match");
 
         nodes[tokenId].status = newStatus;
         emit StatusUpdated(tokenId, newStatus);
     }
 
-    function _isApprovedOrOwner(
-        address spender,
-        uint256 tokenId
-    ) internal view returns (bool) {
+    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view returns (bool) {
         address ownerAddress = ownerOf(tokenId);
-        return (spender == ownerAddress ||
-            getApproved(tokenId) == spender ||
-            isApprovedForAll(ownerAddress, spender));
+        return (spender == ownerAddress || getApproved(tokenId) == spender || isApprovedForAll(ownerAddress, spender));
     }
 
     event StatusUpdated(uint256 indexed tokenId, string newStatus);
+
+    // No custom beforeTokenTransfer logic required here; rely on ERC721Upgradeable defaults
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

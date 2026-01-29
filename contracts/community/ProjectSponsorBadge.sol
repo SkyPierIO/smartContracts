@@ -1,11 +1,21 @@
 // contracts/community/ProjectSponsorBadge.sol
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts/token/ERC3525/ERC3525.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "../lib/ExpiryManagement.sol";
 
-contract ProjectSponsorBadge is ERC3525, AccessControl {
+contract ProjectSponsorBadge is
+    Initializable,
+    ERC1155Upgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable
+{
+    using ExpiryManagement for ExpiryManagement.ExpiryInfo;
+
     uint256 public constant SPONSOR_BADGE = 0;
     uint256 public constant BADGE_EXPIRY = 52 weeks;
 
@@ -17,6 +27,7 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
     }
 
     mapping(uint256 => ProjectInfo) private _projectInfo;
+    mapping(uint256 => ExpiryManagement.ExpiryInfo) private _expiryInfo;
 
     event BadgeMinted(
         uint256 indexed tokenId,
@@ -25,8 +36,16 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
         uint256 expiry
     );
 
-    constructor() ERC3525("https://skypier.io/sponsor/{id}.json") {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize() public initializer {
+        __ERC1155_init("https://skypier.io/sponsor/{id}.json");
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /**
@@ -39,16 +58,16 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
         address to,
         string memory projectId,
         uint256 duration
-    ) external {
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(to != address(0), "Invalid recipient");
-        require(duration > 0, "Duration must be > 0");
         if (duration == 0) duration = BADGE_EXPIRY; // Default to 52 weeks
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
+        require(duration > 0, "Duration must be > 0");
 
-        uint256 tokenId = keccak256(abi.encodePacked(projectId, sponsor));
+        uint256 tokenId = uint256(keccak256(abi.encodePacked(projectId, to, block.timestamp)));
         uint256 expiry = block.timestamp + duration;
 
-        _mint(to, tokenId, 1, expiry, "");
+        _mint(to, tokenId, 1, "");
+        _expiryInfo[tokenId].setExpiryAbsolute(uint64(expiry));
 
         _projectInfo[tokenId] = ProjectInfo({
             projectId: projectId,
@@ -57,9 +76,7 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
             sponsor: to
         });
 
-        // Emit in mintSponsorBadge:
         emit BadgeMinted(tokenId, projectId, to, expiry);
-
     }
 
     /**
@@ -77,22 +94,41 @@ contract ProjectSponsorBadge is ERC3525, AccessControl {
      * @return bool True if badge is still valid, false otherwise
      */
     function isValidBadge(uint256 tokenId) public view returns (bool) {
-        ProjectInfo memory info = _projectInfo[tokenId];
-        return block.timestamp <= info.endTime;
+        return _expiryInfo[tokenId].isValid();
     }
 
     /**
-     * @dev Override transfer to enforce soulbound behavior
+     * @dev Enforce soulbound semantics: no transfers except burn/mint
      */
     function _beforeTokenTransfer(
+        address /*operator*/,
         address from,
         address to,
-        uint256 tokenId
-    ) internal virtual override {
-        super._beforeTokenTransfer(from, to, tokenId);
-
-        if (from != address(0)) {
-            require(to == address(0) || to == from, "Sponsor badge is soulbound");
-        }
+        uint256[] memory /*ids*/,
+        uint256[] memory /*amounts*/,
+        bytes memory /*data*/
+    ) internal {
+        require(from == address(0) || to == address(0), "Sponsor badge is soulbound");
     }
+
+    /**
+     * @dev Support AccessControl interface
+     */
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
+
+    /**
+     * @dev UUPS upgrade authorization
+     */
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {}
 }

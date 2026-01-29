@@ -1,189 +1,73 @@
 // contracts/product/tokens/SkypierBadges.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.24;
 
-import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "../../interfaces/IERC6551Registry.sol";
-import "../../interfaces/ITokenBoundAccount.sol";
-import "../lib/Roles.sol";
 
-contract SkypierBadges is ERC1155Upgradeable, AccessControlUpgradeable, ERC165 {
-    using Roles for address;
+/**
+ * @title SkypierBadges
+ * @dev ERC1155-based badges for Skypier roles and achievements
+ */
+contract SkypierBadges is Initializable, ERC1155Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
-    // Badge IDs
-    uint256 public constant CLIENT_TOKEN_ID = Roles.CLIENT_TOKEN_ID;
-    uint256 public constant OPERATOR_TOKEN_ID = Roles.OPERATOR_TOKEN_ID;
-    uint256 public constant VALIDATOR_TOKEN_ID = Roles.VALIDATOR_TOKEN_ID;
-    uint256 public constant BETA_TESTER_BADGE_ID = Roles.BETA_TESTER_BADGE_ID;
+    uint256 private _nextTokenId;
 
-    // function mintBadge(address user, uint256 badgeId) external {
-    //     _safeMint(user, badgeId);
-    //     if (badgeId == _ROLE) {
-    //         user.grantRole(_ROLE);
-    //     }
-    // }
-    // function isOperator(address user) public view returns (bool) {
-    //     return user.hasRole(OPERATOR_ROLE) || ownerOf(OPERATOR_TOKEN_ID) == user;
-    // }
+    event BadgeMinted(address indexed to, uint256 indexed tokenId, uint256 amount);
 
-    // ERC6551 Registry
-    IERC6551Registry public erc6551Registry;
-    address public tokenBoundAccountImplementation;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
-    // Events
-    event TokenBoundAccountCreated(
-        address indexed tokenContract,
-        uint256 indexed tokenId,
-        address indexed account,
-        address owner
-    );
+    function initialize() public initializer {
+        __ERC1155_init("https://skypier.io/badges/{id}.json");
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+    }
 
-    constructor(address _erc6551Registry, address _tokenBoundAccountImplementation)
-        ERC1155("https://skypier.io/badges/{id}.json")
+    /**
+     * @dev Mint a badge
+     */
+    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
+        require(to != address(0), "Invalid recipient");
+        uint256 tokenId = _nextTokenId++;
+        _mint(to, tokenId, amount, "");
+        emit BadgeMinted(to, tokenId, amount);
+    }
+
+    /**
+     * @dev Mint a specific token ID
+     */
+    function mintToken(address to, uint256 tokenId, uint256 amount) external onlyRole(MINTER_ROLE) {
+        require(to != address(0), "Invalid recipient");
+        _mint(to, tokenId, amount, "");
+        emit BadgeMinted(to, tokenId, amount);
+    }
+
+    /**
+     * @dev Support AccessControl interface
+     */
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
+        returns (bool)
     {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        erc6551Registry = IERC6551Registry(_erc6551Registry);
-        tokenBoundAccountImplementation = _tokenBoundAccountImplementation;
+        return super.supportsInterface(interfaceId);
     }
 
     /**
-     * @dev Mints a client badge and creates a TokenBoundAccount
-     * @param to Address to receive the badge
+     * @dev UUPS upgrade authorization
      */
-    function mintClientBadge(address to) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, CLIENT_ROLE, "");
-    }
-
-    /**
-     * @dev Mints an operator badge with PeerID and creates a TokenBoundAccount
-     * @param to Address to receive the badge
-     * @param peerId PeerID of the operator node
-     */
-    function mintOperatorBadge(address to, string memory peerId) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, OPERATOR_ROLE, peerId);
-    }
-
-    /**
-     * @dev Mints a validator badge and creates a TokenBoundAccount
-     * @param to Address to receive the badge
-     */
-    function mintValidatorBadge(address to) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, VALIDATOR_ROLE, "");
-    }
-
-    /**
-     * @dev Mints a beta tester badge and creates a TokenBoundAccount
-     * @param to Address to receive the badge
-     */
-    function mintBetaTesterBadge(address to) external {
-        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
-        _mintWithAccount(to, BETA_TESTER_BADGE, "");
-    }
-
-    /**
-     * @dev Internal function to mint a badge and create a TokenBoundAccount
-     * @param to Address to receive the badge
-     * @param badgeId ID of the badge to mint
-     * @param data Additional data for the badge
-     */
-    function _mintWithAccount(address to, uint256 badgeId, string memory data) internal {
-        uint256 tokenId = _nextTokenId();
-        _mint(to, tokenId, 1, data);
-
-        // Create TokenBoundAccount for this badge
-        address account = erc6551Registry.createAccount(
-            tokenBoundAccountImplementation,
-            block.chainid,
-            address(this),
-            tokenId,
-            0 // salt
-        );
-
-        emit TokenBoundAccountCreated(address(this), tokenId, account, to);
-    }
-
-    /**
-     * @dev Gets the TokenBoundAccount for a badge
-     * @param tokenId ID of the token
-     * @return address TokenBoundAccount address
-     */
-    function getTokenBoundAccount(uint256 tokenId) external view returns (address) {
-        return erc6551Registry.account(
-            tokenBoundAccountImplementation,
-            block.chainid,
-            address(this),
-            tokenId,
-            0 // salt
-        );
-    }
-
-    /**
-     * @dev Override supportsInterface to include ERC6551 interfaces
-     */
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        return
-            interfaceId == type(IERC6551Registry).interfaceId ||
-            super.supportsInterface(interfaceId);
-    }
-
-    /**
-     * @dev Gets the PeerID for an operator badge
-     * @param tokenId ID of the operator badge
-     * @return string PeerID
-     */
-    function getOperatorPeerId(uint256 tokenId) external view returns (string memory) {
-        require(_exists(tokenId), "Token does not exist");
-        require(_getBadgeType(tokenId) == OPERATOR_ROLE, "Not an operator badge");
-
-        bytes memory data = _tokenData[tokenId];
-        return abi.decode(data, (string));
-    }
-
-    /**
-     * @dev Internal helper to get the badge type from a token ID
-     */
-    function _getBadgeType(uint256 tokenId) internal view returns (uint256) {
-        // In a real implementation, you would need to track which badge type each token ID belongs to
-        // This is a simplified version that assumes the first token of each type has a specific ID range
-        if (tokenId <= 10000) return CLIENT_ROLE;
-        else if (tokenId <= 20000) return OPERATOR_ROLE;
-        else if (tokenId <= 30000) return VALIDATOR_ROLE;
-        else return BETA_TESTER_BADGE;
-    }
-
-    /**
-     * @dev Internal helper to check if a token exists
-     */
-    function _exists(uint256 tokenId) internal view returns (bool) {
-        return _tokenOwners[tokenId] != address(0);
-    }
-
-    /**
-     * @dev Override _beforeTokenTransfer to add custom logic
-     */
-    function _beforeTokenTransfer(
-        address operator,
-        address from,
-        address to,
-        uint256[] memory ids,
-        uint256[] memory amounts,
-        bytes memory data
-    ) internal virtual override {
-        super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
-
-        // For BETA_TESTER_BADGE, require multisig approval
-        for (uint256 i = 0; i < ids.length; i++) {
-            if (_getBadgeType(ids[i]) == BETA_TESTER_BADGE) {
-                // In a real implementation, you would check for multisig approval here
-                require(hasRole(DEFAULT_ADMIN_ROLE, operator), "Multisig required for Beta Tester Badge transfer");
-            }
-        }
-    }
+    function _authorizeUpgrade(address newImplementation)
+        internal
+        override
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {}
 }

@@ -1,6 +1,6 @@
 // contracts/interfaces/IERC6551Registry.sol
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.24;
 
 interface IERC6551Registry {
     /**
