@@ -1,4 +1,3 @@
-// tests/internal/HumanResources_test.sol
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
