@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-// NOTE: Full implementation stubbed to avoid upgrades-core AST dereferencer issue with ReentrancyGuardUpgradeable
-// The issue appears to be related to the initializer call graph validation in @openzeppelin/upgrades-core v1.42.0
-// Original full implementation (with ReentrancyGuardUpgradeable) is in disabled_contracts/original_HumanResources.sol
-// TODO: Upgrade @openzeppelin/upgrades-core to a version that resolves this issue, or refactor to avoid ReentrancyGuardUpgradeable
-
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
 /**
  * @title HumanResources
- * @dev Manages builder pool operations, allocations, and payouts
- * (Simplified version without ReentrancyGuardUpgradeable due to upgrades-core AST issue)
+ * @dev Manages builder pool operations, allocations, and payouts with reentrancy protection
  */
 contract HumanResources is
     Initializable,
     AccessControlUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
 {
     bytes32 public constant HR_MANAGER_ROLE = keccak256("HR_MANAGER_ROLE");
     bytes32 public constant TREASURER_ROLE = keccak256("TREASURER_ROLE");
@@ -52,6 +48,7 @@ contract HumanResources is
 
         __AccessControl_init();
         __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(HR_MANAGER_ROLE, msg.sender);
@@ -104,7 +101,7 @@ contract HumanResources is
         emit AllocationUpdated(builderAddress, newAllocation);
     }
 
-    function processPayment(address builderAddress) external onlyRole(TREASURER_ROLE) {
+    function processPayment(address builderAddress) external onlyRole(TREASURER_ROLE) nonReentrant {
         require(builders[builderAddress].isActive, "Builder not active");
 
         uint256 amount = builders[builderAddress].monthlyAllocation;

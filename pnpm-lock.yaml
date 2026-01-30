@@ -9,14 +9,17 @@ importers:
   .:
     dependencies:
       '@chainlink/contracts':
-        specifier: ^1.3.0
+        specifier: ^1.2.0
         version: 1.3.0(ethers@6.13.5)
       '@openzeppelin/contracts':
-        specifier: ^5.2.0
-        version: 5.2.0
+        specifier: ^5.4.0
+        version: 5.4.0
       '@openzeppelin/contracts-upgradeable':
         specifier: ^5.2.0
-        version: 5.2.0(@openzeppelin/contracts@5.2.0)
+        version: 5.2.0(@openzeppelin/contracts@5.4.0)
+      '@solvprotocol/erc-3525':
+        specifier: ^1.5.0
+        version: 1.5.0
     devDependencies:
       '@openzeppelin/hardhat-upgrades':
         specifier: ^3.9.0
@@ -473,8 +476,8 @@ packages:
   '@openzeppelin/contracts@4.9.3':
     resolution: {integrity: sha512-He3LieZ1pP2TNt5JbkPA4PNT9WC3gOTOlDcFGJW4Le4QKqwmiNJCRt44APfxMxvq7OugU/cqYuPcSBzOw38DAg==}
 
-  '@openzeppelin/contracts@5.2.0':
-    resolution: {integrity: sha512-bxjNie5z89W1Ea0NZLZluFh8PrFNn9DH8DQlujEok2yjsOlraUPKID5p1Wk3qdNbf6XkQ1Os2RvfiHrrXLHWKA==}
+  '@openzeppelin/contracts@5.4.0':
+    resolution: {integrity: sha512-eCYgWnLg6WO+X52I16TZt8uEjbtdkgLC0SUX/xnAksjjrQI4Xfn4iBRoI5j55dmlOhDv1Y7BoR3cU7e3WWhC6A==}
 
   '@openzeppelin/defender-sdk-base-client@2.1.0':
     resolution: {integrity: sha512-YxrOgjESsbmxArLoe8kRA6lKwz/Qm/OtaZBfquzAg+w0jgOG9ogFuXA3NI6w2sVw1w/PzI1dWKe30u62p5vLXw==}
@@ -732,6 +735,10 @@ packages:
   '@smithy/util-waiter@4.0.2':
     resolution: {integrity: sha512-piUTHyp2Axx3p/kc2CIJkYSv0BAaheBQmbACZgQSSfWUumWNW+R1lL+H9PDBxKJkvOeEX+hKYEFiwO8xagL8AQ==}
     engines: {node: '>=18.0.0'}
+
+  '@solvprotocol/erc-3525@1.5.0':
+    resolution: {integrity: sha512-4iJ5DbfZngk7HpuRSshHooeBQeHypFCpn2Pr3kRoZEKnS5gzrmMCV0bMhWFXMOxMk6pJYha8g+lWEO9zRz9l/A==}
+    engines: {node: '>=12.10'}
 
   '@types/bn.js@4.11.6':
     resolution: {integrity: sha512-pqr857jrp2kPuO9uRjZ3PwnJTjoQy+fcdxvBTvHm6dkmEL9q+hDD/2j/0ELOBPtPnS8LjCX0gI9nbl8lVkadpg==}
@@ -2911,9 +2918,9 @@ snapshots:
 
   '@openzeppelin/contracts-upgradeable@4.9.3': {}
 
-  '@openzeppelin/contracts-upgradeable@5.2.0(@openzeppelin/contracts@5.2.0)':
+  '@openzeppelin/contracts-upgradeable@5.2.0(@openzeppelin/contracts@5.4.0)':
     dependencies:
-      '@openzeppelin/contracts': 5.2.0
+      '@openzeppelin/contracts': 5.4.0
 
   '@openzeppelin/contracts@4.5.0': {}
 
@@ -2923,7 +2930,7 @@ snapshots:
 
   '@openzeppelin/contracts@4.9.3': {}
 
-  '@openzeppelin/contracts@5.2.0': {}
+  '@openzeppelin/contracts@5.4.0': {}
 
   '@openzeppelin/defender-sdk-base-client@2.1.0':
     dependencies:
@@ -3354,6 +3361,11 @@ snapshots:
       '@smithy/abort-controller': 4.0.1
       '@smithy/types': 4.1.0
       tslib: 2.8.1
+
+  '@solvprotocol/erc-3525@1.5.0':
+    dependencies:
+      '@openzeppelin/contracts': 4.9.3
+      '@openzeppelin/contracts-upgradeable': 4.9.3
 
   '@types/bn.js@4.11.6':
     dependencies:
