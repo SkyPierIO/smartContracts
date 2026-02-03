@@ -6,15 +6,19 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "../../interfaces/IBadges.sol";
 
 /**
  * @title SkypierBadges
  * @dev ERC1155-based badges for Skypier roles and achievements
  */
-contract SkypierBadges is Initializable, ERC1155Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+contract SkypierBadges is Initializable, ERC1155Upgradeable, AccessControlUpgradeable, UUPSUpgradeable, IBadges {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
     uint256 private _nextTokenId;
+    
+    // Mapping to track badge attributes: badgeId => holder => BadgeAttributes
+    mapping(uint256 => mapping(address => BadgeAttributes)) private _badgeAttributes;
 
     event BadgeMinted(address indexed to, uint256 indexed tokenId, uint256 amount);
 
@@ -51,7 +55,51 @@ contract SkypierBadges is Initializable, ERC1155Upgradeable, AccessControlUpgrad
     }
 
     /**
-     * @dev Support AccessControl interface
+     * @dev Mint a badge with attributes (IBadges interface implementation)
+     */
+    function mintBadge(
+        address to,
+        uint256 badgeId,
+        uint256 amount,
+        bytes memory data
+    ) external override onlyRole(MINTER_ROLE) {
+        require(to != address(0), "Invalid recipient");
+        _mint(to, badgeId, amount, data);
+        _badgeAttributes[badgeId][to] = BadgeAttributes(
+            to,
+            msg.sender,
+            block.timestamp,
+            0  // expiresAt = 0 means no expiry
+        );
+        emit BadgeMinted(to, badgeId, amount);
+    }
+
+    /**
+     * @dev Revoke a badge (IBadges interface implementation)
+     */
+    function revokeBadge(address from, uint256 badgeId) external override onlyRole(MINTER_ROLE) {
+        require(from != address(0), "Invalid address");
+        uint256 balance = balanceOf(from, badgeId);
+        if (balance > 0) {
+            _burn(from, badgeId, balance);
+        }
+        delete _badgeAttributes[badgeId][from];
+    }
+
+    /**
+     * @dev Get badge attributes (IBadges interface implementation)
+     */
+    function getBadgeAttributes(uint256 badgeId, address holder)
+        external
+        view
+        override
+        returns (BadgeAttributes memory)
+    {
+        return _badgeAttributes[badgeId][holder];
+    }
+
+    /**
+     * @dev Support AccessControl and IBadges interfaces
      */
     function supportsInterface(bytes4 interfaceId)
         public
@@ -59,7 +107,7 @@ contract SkypierBadges is Initializable, ERC1155Upgradeable, AccessControlUpgrad
         override(ERC1155Upgradeable, AccessControlUpgradeable)
         returns (bool)
     {
-        return super.supportsInterface(interfaceId);
+        return interfaceId == type(IBadges).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /**

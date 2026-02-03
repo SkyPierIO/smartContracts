@@ -6,14 +6,19 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {ERC1155Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "../interfaces/ISkypierVPN.sol";
 import "./tokens/SkypierBadges.sol";
 import "./tokens/SkypierToken.sol";
+import {NodeStatusContract} from "../lib/nodeStatus.sol";
+import {NodeConfigContract} from "../lib/nodeConfig.sol";
+import {ERC6551Registry} from "../lib/ERC6551Registry.sol";
+import {TokenBoundAccount} from "../lib/TokenBoundAccount.sol";
 
 /**
  * @title SkypierVPN
  * @dev Core Skypier VPN contract for node and operator management
  */
-contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeable, UUPSUpgradeable {
+contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeable, UUPSUpgradeable, ISkypierVPN {
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant VALIDATOR_ROLE = keccak256("VALIDATOR_ROLE");

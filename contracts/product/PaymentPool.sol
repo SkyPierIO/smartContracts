@@ -7,9 +7,10 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IClientToken} from "../interfaces/IClientToken.sol";
+import {IPaymentPool} from "../interfaces/IPaymentPool.sol";
 import {Roles} from "../lib/Roles.sol";
 
-contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IPaymentPool {
     // Roles
     bytes32 private constant PAYMENT_MANAGER = keccak256("PAYMENT_MANAGER");
     bytes32 public constant BUILDER_ROLE = Roles.BUILDER_ROLE;
@@ -84,6 +85,37 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         _grantRole(DEFAULT_ADMIN_ROLE, admin == address(0) ? msg.sender : admin);
         _grantRole(PAYMENT_MANAGER, admin == address(0) ? msg.sender : admin);
         lastDistributionTime = block.timestamp;
+    }
+
+    /**
+     * @dev Deposit ETH into the contract (IPaymentPool interface implementation)
+     */
+    function deposit() external payable override {
+        require(msg.value > 0, "Deposit amount must be greater than 0");
+        // Funds are received directly via this function
+    }
+
+    /**
+     * @dev Distribute payments to network participants (IPaymentPool interface implementation)
+     */
+    function distributePayments() external override onlyRole(PAYMENT_MANAGER) {
+        // Call the internal distribution functions
+        distributeNetworkPayments();
+        distributeBuilderPayments();
+    }
+
+    /**
+     * @dev Get the network pool balance (IPaymentPool interface implementation)
+     */
+    function getNetworkPoolBalance() external view override returns (uint256) {
+        return networkPool != address(0) ? networkPool.balance : 0;
+    }
+
+    /**
+     * @dev Get the builder pool balance (IPaymentPool interface implementation)
+     */
+    function getBuilderPoolBalance() external view override returns (uint256) {
+        return builderPool != address(0) ? builderPool.balance : 0;
     }
 
     /**
