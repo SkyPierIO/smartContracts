@@ -36,6 +36,15 @@ interface IERC6551Registry {
         uint256 salt
     ) external returns (address);
 
+    function createAccountWithOwner(
+        address implementation,
+        uint256 chainId,
+        address tokenContract,
+        uint256 tokenId,
+        uint256 salt,
+        address owner
+    ) external returns (address);
+
     /**
      * @dev Computes the deterministic address of an ERC-6551 account.
      * @param implementation The implementation contract for the account.

@@ -46,6 +46,9 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     uint256 public totalNetworkPayments;
     uint256 public totalBuilderPayments;
     uint256 public totalClientDeposits;
+    uint256 public networkPoolFunds;
+    uint256 public builderPoolFunds;
+    uint256 public developerPoolFunds;
 
     // Events
     event PaymentDistributed(address indexed recipient, uint256 amount, string role);
@@ -92,30 +95,57 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      */
     function deposit() external payable override {
         require(msg.value > 0, "Deposit amount must be greater than 0");
-        // Funds are received directly via this function
+        networkPoolFunds += msg.value;
+        emit ClientDeposit(msg.sender, msg.value);
+    }
+
+    function depositBuilderPool() external payable onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(msg.value > 0, "Deposit amount must be greater than 0");
+        builderPoolFunds += msg.value;
+    }
+
+    function depositDeveloperPool() external payable onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(msg.value > 0, "Deposit amount must be greater than 0");
+        developerPoolFunds += msg.value;
     }
 
     /**
      * @dev Distribute payments to network participants (IPaymentPool interface implementation)
      */
     function distributePayments() external override onlyRole(PAYMENT_MANAGER) {
-        // Call the internal distribution functions
-        distributeNetworkPayments();
-        distributeBuilderPayments();
+        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
+        require(networkPoolFunds > 0 || builderPoolFunds > 0, "No funded pools");
+        if (networkPoolFunds > 0) _distributeNetworkPayments();
+        if (builderPoolFunds > 0) _distributeBuilderPayments();
+        lastDistributionTime = block.timestamp;
+    }
+
+    function distributeNetworkPayments() external onlyRole(PAYMENT_MANAGER) {
+        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
+        require(networkPoolFunds > 0, "Network pool not funded");
+        _distributeNetworkPayments();
+        lastDistributionTime = block.timestamp;
+    }
+
+    function distributeBuilderPayments() external onlyRole(PAYMENT_MANAGER) {
+        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
+        require(builderPoolFunds > 0, "Builder pool not funded");
+        _distributeBuilderPayments();
+        lastDistributionTime = block.timestamp;
     }
 
     /**
      * @dev Get the network pool balance (IPaymentPool interface implementation)
      */
     function getNetworkPoolBalance() external view override returns (uint256) {
-        return networkPool != address(0) ? networkPool.balance : 0;
+        return networkPoolFunds;
     }
 
     /**
      * @dev Get the builder pool balance (IPaymentPool interface implementation)
      */
     function getBuilderPoolBalance() external view override returns (uint256) {
-        return builderPool != address(0) ? builderPool.balance : 0;
+        return builderPoolFunds;
     }
 
     /**
@@ -129,8 +159,10 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
         // Issue CLIENT_BADGE (no expiry)
         clientToken.mint(msg.sender, clientToken.CLIENT_BADGE(), 1, "");
+        totalClientDeposits += paymentAmount;
 
         emit ClientBadgeIssued(msg.sender, paymentAmount);
+        emit ClientDeposit(msg.sender, paymentAmount);
     }
 
     /**
@@ -188,6 +220,18 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         });
     }
 
+    function payBuilderPayment(address payable _builder, uint256 amount) external override {
+        require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
+        require(_builder != address(0), "Invalid builder");
+        require(amount > 0 && builderPoolFunds >= amount, "Insufficient builder funds");
+
+        builderPoolFunds -= amount;
+        (bool success,) = _builder.call{value: amount}("");
+        require(success, "Builder payment failed");
+        totalBuilderPayments += amount;
+        emit PaymentDistributed(_builder, amount, "Builder");
+    }
+
     /**
      * @dev Record operator contribution metrics
      * @param _operator Address of the operator
@@ -208,7 +252,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @param _validator Address of the validator
      * @param validationCount Number of validations performed
      */
-    function recordValidatorMetrics(address _validator, uint256 validationCount) external {
+    function recordValidatorMetrics(address _validator, uint256 validationCount) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(validators[_validator].isActive, "Validator not active");
 
@@ -230,12 +274,8 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     /**
      * @dev Distribute payments to operators and validators from network pool
      */
-    function distributeNetworkPayments() public {
-        require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
-        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
-
-        uint256 networkPoolBalance = address(networkPool).balance;
-        require(networkPoolBalance > 0, "Insufficient funds in network pool");
+    function _distributeNetworkPayments() internal {
+        uint256 networkPoolBalance = networkPoolFunds;
 
         // Calculate total contributions
         uint256 totalOperatorContributions = 0;
@@ -277,6 +317,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
                         // Transfer ETH
                         payable(operator).transfer(share);
+                        networkPoolFunds -= share;
                         emit PaymentDistributed(operator, share, "Operator");
 
                         totalNetworkPayments = totalNetworkPayments + share;
@@ -297,6 +338,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
                         // Transfer ETH
                         payable(validator).transfer(share);
+                        networkPoolFunds -= share;
                         emit PaymentDistributed(validator, share, "Validator");
 
                         totalNetworkPayments = totalNetworkPayments + share;
@@ -305,18 +347,13 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             }
         }
 
-        lastDistributionTime = block.timestamp;
     }
 
     /**
      * @dev Distribute payments to builders from builder pool
      */
-    function distributeBuilderPayments() public {
-        require(hasRole(BUILDER_ROLE, msg.sender) || hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
-        require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
-
-        uint256 builderPoolBalance = address(builderPool).balance;
-        require(builderPoolBalance > 0, "Insufficient funds in builder pool");
+    function _distributeBuilderPayments() internal {
+        uint256 builderPoolBalance = builderPoolFunds;
 
         // Calculate total contributions
         uint256 totalBuilderContributions = 0;
@@ -343,6 +380,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
 
                         // Transfer ETH
                         payable(builder).transfer(share);
+                        builderPoolFunds -= share;
                         emit PaymentDistributed(builder, share, "Builder");
 
                         totalBuilderPayments = totalBuilderPayments + share;
@@ -351,7 +389,6 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
             }
         }
 
-        lastDistributionTime = block.timestamp;
     }
 
     /**
@@ -363,21 +400,28 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     function withdrawFunds(string memory walletType, uint256 amount, address payable to) external {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Not authorized");
 
-        address payable wallet;
+        uint256 availableBalance;
         if (keccak256(bytes(walletType)) == keccak256(bytes("network"))) {
-            wallet = networkPool;
+            availableBalance = networkPoolFunds;
         } else if (keccak256(bytes(walletType)) == keccak256(bytes("builder"))) {
-            wallet = builderPool;
+            availableBalance = builderPoolFunds;
         } else if (keccak256(bytes(walletType)) == keccak256(bytes("developer"))) {
-            wallet = developerPool;
+            availableBalance = developerPoolFunds;
         } else {
             revert("Invalid wallet type");
         }
 
-        require(address(wallet).balance >= amount, "Insufficient funds");
+        require(availableBalance >= amount, "Insufficient funds");
+
+        if (keccak256(bytes(walletType)) == keccak256(bytes("network"))) {
+            networkPoolFunds -= amount;
+        } else if (keccak256(bytes(walletType)) == keccak256(bytes("builder"))) {
+            builderPoolFunds -= amount;
+        } else {
+            developerPoolFunds -= amount;
+        }
 
         // Transfer ETH
-        wallet.transfer(amount);
         payable(to).transfer(amount);
 
         emit FundsWithdrawn(to, amount, walletType);
@@ -479,7 +523,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @dev Fallback receive function to accept ETH
      */
     receive() external payable {
-        // Funds can be sent directly to this contract
+        networkPoolFunds += msg.value;
     }
 
     /**

@@ -93,9 +93,9 @@ contracts/
 - **Core Logic**:
     - `SkypierVPN.sol`: Node onboarding/validation /offboarding (update to use `OperatorToken`/`ValidatorToken`).
     - `PaymentPool.sol`: Split payments into:
-        - `Wallet(Network Pool)`: Manages customer payments and operator/validator biweekly payouts.
-        - `Wallet(Builder Pool)`: Funds builder and employee allocations through `HumanResources.sol`.
-    - `ValidatorEscrow.sol`: Planned UUPS contract for validator stake custody, release, refund, and slashing.
+        - `Network Pool Ledger`: Contract-held ETH balance for operator and validator biweekly payouts.
+        - `Builder Pool Ledger`: Contract-held ETH balance for builder and employee allocations through `HumanResources.sol`.
+    - `ValidatorEscrow.sol`: UUPS contract for validator stake custody, release, refund, and slashing.
     - `nodeStatus.sol`/`nodeConfig.sol`: Move to `lib/` as shared utilities.
 - **Custom Layer**:
     - `CustomDeployment.sol`: Placeholder for deployment-specific logic (e.g., regional compliance).
@@ -119,7 +119,7 @@ contracts/
     - `InternalDAO.sol`: Placeholder adapter for an external internal DAO.
     - `HumanResources.sol`:
         - Manages `BuilderToken` issuance/revocation.
-        - Distributes `Wallet(Builder Pool)` funds biweekly based on `Employee Badge`.
+        - Distributes `Builder Pool Ledger` funds biweekly based on `Employee Badge`.
         - Mints `AnnualizedBadges` via peer recognition (top 3 holders per category).
 
 ---
@@ -167,8 +167,8 @@ contracts/
 | Name | Token Standard | Purpose & definition | How to get this | **Expiry** (ERC-7818) | Max Allowed  | Transferable (ERC-1238) | Soulbound (ERC-5114) | Attributes | Parent Token |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `Client role badge`  | ERC1155 | Product Deployment Contracts — Customer access | ERC-20 payment → `PaymentPool.payForAccess()` → `ClientToken.mint()` | Configurable | One active role | No | Client identity and expiry | N/A |
-| `Operator role badge` | ERC1155 | Product Deployment Contracts — Node hosting | `applyAsOperator()` → validator approval → `claimOperatorNFTBadge()` | No expiration | One active role | No | Operator identity, peer ID, active status | N/A |
-| `Validator role badge`  | ERC1155 | Product Deployment Contracts — Node validation | Escrow-backed `applyAsValidator()` → approval → `claimValidatorNFTBadge()` | No expiration | One active role | No | Validator identity, stake, active status | N/A |
+| `Operator role badge` | ERC1155 | Product Deployment Contracts — Node hosting | `applyAsOperator()` → validator approval → VPN role badge; optional `claimOperatorNFTBadge()` supplementary asset | No expiration | One active role | No | Operator identity, peer ID, active status | N/A |
+| `Validator role badge`  | ERC1155 | Product Deployment Contracts — Node validation | Escrow-backed `applyAsValidator()` → approval → VPN role badge; optional `claimValidatorNFTBadge()` supplementary asset | No expiration | One active role | No | Validator identity, stake, active status | N/A |
 | `Builder role badge`  | ERC1155 | Internal Development Contracts — Builder identity | Admin/bootstrap issuance | Deployment policy | Deployment policy | No | Builder identity and active status | N/A |
 | `Investor Token`  | ERC1155 | Internal Development Contract — Investor access | ClaimInvestorNFTBadge()  | Preset  | N/A | Multisig | False | EthAddr address, AddedBy address, ActiveSince timestamp | N/A |
 | `Beta Tester Badge`  | ERC1155-SFT | Pre-release access | Issue by `Employee Badge` | Inherited | 1 | Inherited | Inherited | Inherited | `Client (Customer) Token`  |

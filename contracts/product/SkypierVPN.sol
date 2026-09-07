@@ -16,6 +16,7 @@ import {OperatorToken} from "./tokens/OperatorToken.sol";
 import {ValidatorToken} from "./tokens/ValidatorToken.sol";
 import {ERC6551Registry} from "../lib/ERC6551Registry.sol";
 import {TokenBoundAccount} from "../lib/TokenBoundAccount.sol";
+import {IValidatorEscrow} from "../interfaces/IValidatorEscrow.sol";
 
 /**
  * @title SkypierVPN
@@ -36,6 +37,7 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
     address public paymentPool;
     address public builderToken;
     address public employeeBadge;
+    IValidatorEscrow public validatorEscrow;
     uint256 public builderTokenId;
     uint256 public employeeBadgeId;
     ERC6551Registry public erc6551Registry;
@@ -46,12 +48,17 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
 
     mapping(address => Node) public nodes;
     mapping(address => bool) public revokedOperators;
+    mapping(address => bool) public operatorValidated;
     mapping(address => string) public operatorPeerIds;
     mapping(address => bool) public operatorApplications;
     mapping(address => uint256) public operatorTokenIds;
     mapping(address => bool) public operatorBadgeClaimed;
     mapping(address => address) public operatorTokenBoundAccounts;
     mapping(address => ValidatorInfo) private _validatorInfo;
+    mapping(address => bool) private _validatorReapplicationBlocked;
+    mapping(address => uint256) private _validatorRemovalCount;
+    mapping(address => bool) private _lastValidatorRemovalWasForCause;
+    mapping(address => uint256) private _lastValidatorRemovalAt;
     mapping(address => bool) public validatorBadgeClaimed;
     mapping(bytes32 => NodeConfig) private _nodeConfigs;
     mapping(address => bool) public betaTesters;
@@ -100,6 +107,7 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
     function applyAsOperator(string calldata peerId) external override {
         require(!revokedOperators[msg.sender], "Operator is revoked");
         require(!nodes[msg.sender].isActive, "Already an operator");
+        require(!operatorValidated[msg.sender], "Already validated");
         require(!operatorApplications[msg.sender], "Already applied");
         require(bytes(peerId).length > 0, "Peer ID required");
         operatorPeerIds[msg.sender] = peerId;
@@ -111,13 +119,20 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
     function validateOperator(address operator, string calldata peerId) external override onlyValidator {
         require(operatorApplications[operator], "Operator not on waitlist");
         require(!revokedOperators[operator], "Operator is revoked");
+        require(!operatorValidated[operator], "Operator already validated");
         require(bytes(peerId).length > 0, "Peer ID required");
         operatorApplications[operator] = false;
         operatorPeerIds[operator] = peerId;
         nodes[operator] = Node(operator, peerId, true, block.timestamp, block.timestamp);
+        operatorValidated[operator] = true;
+        _mint(operator, Roles.OPERATOR_TOKEN_ID, 1, "");
         _nodeConfigs[keccak256(bytes(peerId))] = NodeConfig(peerId, operator, block.timestamp, block.timestamp, true, 0, 0);
         _validatedOperators.push(operator);
-        if (paymentPool != address(0)) IPaymentPool(paymentPool).registerOperator(payable(operator));
+        if (paymentPool != address(0)) {
+            IPaymentPool(paymentPool).registerOperator(payable(operator));
+            IPaymentPool(paymentPool).registerValidator(payable(msg.sender));
+            IPaymentPool(paymentPool).recordValidatorMetrics(msg.sender, 1);
+        }
         emit OperatorValidated(msg.sender, operator, peerId);
     }
 
@@ -128,21 +143,32 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
 
     function _validateOperator(address operator, string memory peerId) internal {
         require(!revokedOperators[operator], "Operator is revoked");
+        require(!operatorValidated[operator], "Operator already validated");
         require(bytes(peerId).length > 0, "Peer ID required");
         operatorApplications[operator] = false;
         operatorPeerIds[operator] = peerId;
         nodes[operator] = Node(operator, peerId, true, block.timestamp, block.timestamp);
+        operatorValidated[operator] = true;
+        _mint(operator, Roles.OPERATOR_TOKEN_ID, 1, "");
         _nodeConfigs[keccak256(bytes(peerId))] = NodeConfig(peerId, operator, block.timestamp, block.timestamp, true, 0, 0);
         _validatedOperators.push(operator);
-        if (paymentPool != address(0)) IPaymentPool(paymentPool).registerOperator(payable(operator));
+        if (paymentPool != address(0)) {
+            IPaymentPool(paymentPool).registerOperator(payable(operator));
+            IPaymentPool(paymentPool).registerValidator(payable(msg.sender));
+            IPaymentPool(paymentPool).recordValidatorMetrics(msg.sender, 1);
+        }
         emit OperatorValidated(msg.sender, operator, peerId);
     }
 
     function applyAsValidator() external payable override {
         require(address(clientToken) != address(0), "Client token not configured");
+        require(address(validatorEscrow) != address(0), "Validator escrow not configured");
         require(clientToken.isValidHolder(msg.sender, clientToken.CLIENT_BADGE()), "Client access required");
-        require(!_validatorInfo[msg.sender].isActive, "Already a validator");
+        require(!_validatorReapplicationBlocked[msg.sender], "Validator reapplication blocked");
+        require(_validatorInfo[msg.sender].appliedAt == 0, "Already applied");
         require(msg.value >= stakeAmount, "Insufficient stake");
+        validatorBadgeClaimed[msg.sender] = false;
+        validatorEscrow.depositFor{value: msg.value}(msg.sender);
         _validatorInfo[msg.sender] = ValidatorInfo(msg.value, block.timestamp, 0, false, false);
         _validators.push(msg.sender);
         emit ValidatorApplied(msg.sender, msg.value);
@@ -152,10 +178,14 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
         ValidatorInfo storage info = _validatorInfo[validator];
         require(info.appliedAt != 0, "Validator not applied");
         require(!info.isActive, "Validator already active");
-        if (stakingAmount_ > 0) info.stakingAmount = stakingAmount_;
+        IValidatorEscrow.Stake memory escrowStake = validatorEscrow.getStake(validator);
+        require(escrowStake.active, "Escrow stake not active");
+        require(stakingAmount_ == escrowStake.amount, "Stake amount mismatch");
+        info.stakingAmount = escrowStake.amount;
         info.approvedAt = block.timestamp;
         info.isApproved = true;
         info.isActive = true;
+        _mint(validator, Roles.VALIDATOR_TOKEN_ID, 1, "");
         validatorCount++;
         emit ValidatorApproved(validator, info.stakingAmount);
         if (paymentPool != address(0)) IPaymentPool(paymentPool).registerValidator(payable(validator));
@@ -180,7 +210,7 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
         operatorBadgeClaimed[msg.sender] = true;
         if (address(erc6551Registry) != address(0) && address(tokenBoundAccountImplementation) != address(0)) {
             account = erc6551Registry.account(address(tokenBoundAccountImplementation), block.chainid, address(operatorToken), tokenId, uint256(uint160(msg.sender)));
-            erc6551Registry.createAccount(address(tokenBoundAccountImplementation), block.chainid, address(operatorToken), tokenId, uint256(uint160(msg.sender)));
+            erc6551Registry.createAccountWithOwner(address(tokenBoundAccountImplementation), block.chainid, address(operatorToken), tokenId, uint256(uint160(msg.sender)), msg.sender);
             operatorTokenBoundAccounts[msg.sender] = account;
         }
         emit OperatorBadgeClaimed(msg.sender, tokenId, account);
@@ -224,9 +254,11 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
     }
 
     function revokeOperator(address operator) external override onlyBuilderOrEmployee {
-        require(nodes[operator].isActive, "Operator not active");
+        require(operatorValidated[operator], "Operator not validated");
         revokedOperators[operator] = true;
+        operatorValidated[operator] = false;
         nodes[operator].isActive = false;
+        if (balanceOf(operator, Roles.OPERATOR_TOKEN_ID) > 0) _burn(operator, Roles.OPERATOR_TOKEN_ID, 1);
         _nodeConfigs[keccak256(bytes(nodes[operator].peerId))].isActive = false;
         if (operatorBadgeClaimed[operator] && address(operatorToken) != address(0)) operatorToken.deregisterOperator(operatorTokenIds[operator]);
         if (paymentPool != address(0)) IPaymentPool(paymentPool).deactivateParticipant(operator, "operator");
@@ -234,13 +266,52 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
     }
 
     function removeValidator(address validator) external override onlyBuilderOrEmployee {
+        _removeValidator(validator, false);
+    }
+
+    function removeValidatorForCause(address validator) external override onlyBuilderOrEmployee {
+        _removeValidator(validator, true);
+    }
+
+    function _removeValidator(address validator, bool forCause) internal {
         ValidatorInfo storage info = _validatorInfo[validator];
         require(info.isActive, "Validator not active");
         info.isActive = false;
         if (validatorCount > 0) validatorCount--;
+        if (balanceOf(validator, Roles.VALIDATOR_TOKEN_ID) > 0) _burn(validator, Roles.VALIDATOR_TOKEN_ID, 1);
         if (validatorBadgeClaimed[validator] && address(validatorToken) != address(0)) validatorToken.revokeValidatorBadge(validator);
         if (paymentPool != address(0)) IPaymentPool(paymentPool).deactivateParticipant(validator, "validator");
+        if (forCause) {
+            IValidatorEscrow.Stake memory escrowStake = validatorEscrow.getStake(validator);
+            require(address(validatorEscrow) != address(0), "Validator escrow not configured");
+            require(paymentPool != address(0), "Payment pool not configured");
+            if (escrowStake.active) validatorEscrow.slashStake(validator, payable(paymentPool), escrowStake.amount);
+            _validatorReapplicationBlocked[validator] = true;
+        } else {
+            if (address(validatorEscrow) != address(0)) validatorEscrow.releaseStake(validator, payable(validator));
+            delete _validatorInfo[validator];
+        }
+        _validatorRemovalCount[validator]++;
+        _lastValidatorRemovalWasForCause[validator] = forCause;
+        _lastValidatorRemovalAt[validator] = block.timestamp;
+        emit ValidatorRemovalRecorded(validator, forCause, _validatorRemovalCount[validator]);
         emit ValidatorRemoved(validator);
+    }
+
+    function releaseValidatorStake(address validator) external override onlyBuilderOrEmployee {
+        require(address(validatorEscrow) != address(0), "Validator escrow not configured");
+        require(_validatorInfo[validator].appliedAt != 0, "Validator not applied");
+        require(!_validatorInfo[validator].isActive, "Validator still active");
+        validatorEscrow.releaseStake(validator, payable(validator));
+    }
+
+    function slashValidatorStake(address validator, address payable recipient, uint256 amount)
+        external
+        override
+        onlyBuilderOrEmployee
+    {
+        require(address(validatorEscrow) != address(0), "Validator escrow not configured");
+        validatorEscrow.slashStake(validator, recipient, amount);
     }
 
     function assignBetaTesterBadge(address recipient) external override onlyBuilderOrEmployee {
@@ -290,12 +361,31 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
 
     function getValidatorInfo(address validator) external view override returns (ValidatorInfo memory) { return _validatorInfo[validator]; }
 
+    function isValidatorReapplicationBlocked(address validator) external view override returns (bool) {
+        return _validatorReapplicationBlocked[validator];
+    }
+
+    function getValidatorRemovalHistory(address validator)
+        external
+        view
+        override
+        returns (uint256 removalCount, bool lastRemovalWasForCause, uint256 lastRemovalAt)
+    {
+        return (
+            _validatorRemovalCount[validator],
+            _lastValidatorRemovalWasForCause[validator],
+            _lastValidatorRemovalAt[validator]
+        );
+    }
+
     function isValidatedOperator(address operator) public view override returns (bool) {
-        return nodes[operator].isActive && !revokedOperators[operator];
+        return operatorValidated[operator] && !revokedOperators[operator];
     }
 
     function isValidator(address validator) public view override returns (bool) {
-        return _validatorInfo[validator].isActive || (address(validatorToken) != address(0) && validatorToken.balanceOf(validator, validatorToken.VALIDATOR_BADGE()) > 0);
+        return balanceOf(validator, Roles.VALIDATOR_TOKEN_ID) > 0 ||
+            _validatorInfo[validator].isActive ||
+            (address(validatorToken) != address(0) && validatorToken.balanceOf(validator, validatorToken.VALIDATOR_BADGE()) > 0);
     }
 
     function hasBetaTesterBadge(address account) public view override returns (bool) {
@@ -328,21 +418,33 @@ contract SkypierVPN is Initializable, AccessControlUpgradeable, ERC1155Upgradeab
 
     function setPaymentPool(address newPaymentPool) external override onlyRole(DEFAULT_ADMIN_ROLE) { paymentPool = newPaymentPool; emit DependencyUpdated("PAYMENT_POOL", newPaymentPool); }
     function setOperatorToken(address newOperatorToken) external override onlyRole(DEFAULT_ADMIN_ROLE) { operatorToken = OperatorToken(newOperatorToken); emit DependencyUpdated("OPERATOR_TOKEN", newOperatorToken); }
-    function setValidatorToken(address newValidatorToken) external override onlyRole(DEFAULT_ADMIN) { validatorToken = ValidatorToken(newValidatorToken); emit DependencyUpdated("VALIDATOR_TOKEN", newValidatorToken); }
+    function setValidatorToken(address newValidatorToken) external override onlyRole(DEFAULT_ADMIN_ROLE) { validatorToken = ValidatorToken(newValidatorToken); emit DependencyUpdated("VALIDATOR_TOKEN", newValidatorToken); }
     function setClientToken(address newClientToken) external override onlyRole(DEFAULT_ADMIN_ROLE) { clientToken = IClientToken(newClientToken); emit DependencyUpdated("CLIENT_TOKEN", newClientToken); }
     function setSkypierBadges(address newSkypierBadges) external override onlyRole(DEFAULT_ADMIN_ROLE) { badges = SkypierBadges(newSkypierBadges); emit DependencyUpdated("SKYPIER_BADGES", newSkypierBadges); }
     function setBuilderToken(address newBuilderToken) external override onlyRole(DEFAULT_ADMIN_ROLE) { builderToken = newBuilderToken; emit DependencyUpdated("BUILDER_TOKEN", newBuilderToken); }
     function setEmployeeBadge(address newEmployeeBadge) external override onlyRole(DEFAULT_ADMIN_ROLE) { employeeBadge = newEmployeeBadge; emit DependencyUpdated("EMPLOYEE_BADGE", newEmployeeBadge); }
     function setBuilderTokenId(uint256 newBuilderTokenId) external override onlyRole(DEFAULT_ADMIN_ROLE) { builderTokenId = newBuilderTokenId; }
     function setEmployeeBadgeId(uint256 newEmployeeBadgeId) external override onlyRole(DEFAULT_ADMIN_ROLE) { employeeBadgeId = newEmployeeBadgeId; }
+    function setValidatorEscrow(address newValidatorEscrow) external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        validatorEscrow = IValidatorEscrow(newValidatorEscrow);
+        emit DependencyUpdated("VALIDATOR_ESCROW", newValidatorEscrow);
+    }
 
     function setERC6551Dependencies(address registry, address implementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
         erc6551Registry = ERC6551Registry(registry);
-        tokenBoundAccountImplementation = TokenBoundAccount(implementation);
+        tokenBoundAccountImplementation = TokenBoundAccount(payable(implementation));
     }
 
     function _holdsConfiguredBadge(address account, address token, uint256 tokenId) internal view returns (bool) {
         return token != address(0) && IERC1155(token).balanceOf(account, tokenId) > 0;
+    }
+
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        override
+    {
+        require(from == address(0) || to == address(0), "Role badges are soulbound");
+        super._update(from, to, ids, values);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC1155Upgradeable, AccessControlUpgradeable) returns (bool) { return super.supportsInterface(interfaceId); }

@@ -5,6 +5,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {IPaymentPool} from "../interfaces/IPaymentPool.sol";
+import {IInternalRoleTokens} from "../interfaces/IInternalRoleTokens.sol";
 
 /**
  * @title HumanResources
@@ -31,7 +33,12 @@ contract HumanResources is
     address[] public activeBuilders;
 
     uint256 public totalBuilderAllocations;
+    uint256 public activeBuilderCount;
     address payable public builderPoolWallet;
+    address public paymentPool;
+    IInternalRoleTokens public builderToken;
+    IInternalRoleTokens public employeeBadge;
+    IInternalRoleTokens public adminBadge;
 
     event BuilderRegistered(address indexed builder, string role, uint256 allocation);
     event BuilderDeregistered(address indexed builder);
@@ -64,6 +71,7 @@ contract HumanResources is
     ) external onlyRole(HR_MANAGER_ROLE) {
         require(builderAddress != address(0), "Invalid address");
         require(monthlyAllocation > 0, "Allocation must be > 0");
+        require(!builders[builderAddress].isActive, "Builder already active");
 
         builders[builderAddress] = Builder({
             wallet: builderAddress,
@@ -75,6 +83,8 @@ contract HumanResources is
 
         totalBuilderAllocations += monthlyAllocation;
         activeBuilders.push(builderAddress);
+        activeBuilderCount++;
+        if (paymentPool != address(0)) IPaymentPool(paymentPool).registerBuilder(payable(builderAddress));
 
         emit BuilderRegistered(builderAddress, role, monthlyAllocation);
     }
@@ -84,6 +94,7 @@ contract HumanResources is
 
         totalBuilderAllocations -= builders[builderAddress].monthlyAllocation;
         builders[builderAddress].isActive = false;
+        activeBuilderCount--;
 
         emit BuilderDeregistered(builderAddress);
     }
@@ -109,8 +120,12 @@ contract HumanResources is
 
         builders[builderAddress].lastPaymentTime = block.timestamp;
 
-        (bool success,) = payable(builderAddress).call{value: amount}("");
-        require(success, "Payment failed");
+        if (paymentPool != address(0)) {
+            IPaymentPool(paymentPool).payBuilderPayment(payable(builderAddress), amount);
+        } else {
+            (bool success,) = payable(builderAddress).call{value: amount}("");
+            require(success, "Payment failed");
+        }
 
         emit PaymentProcessed(builderAddress, amount);
     }
@@ -119,8 +134,39 @@ contract HumanResources is
         return builders[builderAddress];
     }
 
+    function setPaymentPool(address newPaymentPool) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        paymentPool = newPaymentPool;
+    }
+
+    function setRoleDependencies(address newBuilderToken, address newEmployeeBadge, address newAdminBadge)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        builderToken = IInternalRoleTokens(newBuilderToken);
+        employeeBadge = IInternalRoleTokens(newEmployeeBadge);
+        adminBadge = IInternalRoleTokens(newAdminBadge);
+    }
+
+    function issueBuilderRole(address recipient) external onlyRole(HR_MANAGER_ROLE) {
+        require(address(builderToken) != address(0), "Builder token not configured");
+        builderToken.mintBuilderToken(recipient);
+    }
+
+    function issueEmployeeRole(address recipient, uint256 amount, uint256 customExpiryDuration)
+        external
+        onlyRole(HR_MANAGER_ROLE)
+    {
+        require(address(employeeBadge) != address(0), "Employee badge not configured");
+        employeeBadge.mintEmployeeLevelBadge(recipient, amount, customExpiryDuration);
+    }
+
+    function issueAdminRole(address recipient) external onlyRole(HR_MANAGER_ROLE) {
+        require(address(adminBadge) != address(0), "Admin badge not configured");
+        adminBadge.mintAdminBadge(recipient);
+    }
+
     function getActiveBuildersCount() public view returns (uint256) {
-        return activeBuilders.length;
+        return activeBuilderCount;
     }
 
     receive() external payable {}

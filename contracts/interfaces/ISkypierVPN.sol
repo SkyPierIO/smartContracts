@@ -46,6 +46,7 @@ interface ISkypierVPN is IAccessControl {
     event ValidatorApplied(address indexed validator, uint256 stakingAmount);
     event ValidatorApproved(address indexed validator, uint256 stakingAmount);
     event ValidatorRemoved(address indexed validator);
+    event ValidatorRemovalRecorded(address indexed validator, bool forCause, uint256 removalCount);
     event OperatorBadgeClaimed(address indexed operator, uint256 indexed tokenId, address account);
     event ValidatorBadgeClaimed(address indexed validator);
     event BetaTesterAssigned(address indexed recipient);
@@ -62,6 +63,7 @@ interface ISkypierVPN is IAccessControl {
     function claimOperatorNFTBadge() external returns (uint256 tokenId, address account);
     function claimValidatorNFTBadge() external;
     function removeValidator(address validator) external;
+    function removeValidatorForCause(address validator) external;
     function registerNode(string calldata peerId) external;
     function deregisterNode(string calldata peerId) external;
     function updateHeartbeat() external;
@@ -77,6 +79,11 @@ interface ISkypierVPN is IAccessControl {
     function getOperatorTokenBoundAccount(address operator) external view returns (address);
     function getOperatorInfo(address operator) external view returns (OperatorInfo memory);
     function getValidatorInfo(address validator) external view returns (ValidatorInfo memory);
+    function isValidatorReapplicationBlocked(address validator) external view returns (bool);
+    function getValidatorRemovalHistory(address validator)
+        external
+        view
+        returns (uint256 removalCount, bool lastRemovalWasForCause, uint256 lastRemovalAt);
     function isValidatedOperator(address operator) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
     function hasBetaTesterBadge(address account) external view returns (bool);
@@ -101,4 +108,7 @@ interface ISkypierVPN is IAccessControl {
     function setBuilderTokenId(uint256 newBuilderTokenId) external;
     function setEmployeeBadgeId(uint256 newEmployeeBadgeId) external;
     function setERC6551Dependencies(address registry, address implementation) external;
+    function setValidatorEscrow(address newValidatorEscrow) external;
+    function releaseValidatorStake(address validator) external;
+    function slashValidatorStake(address validator, address payable recipient, uint256 amount) external;
 }

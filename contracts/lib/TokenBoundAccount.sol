@@ -19,9 +19,6 @@ contract TokenBoundAccount is Initializable, ITokenBoundAccount, ERC165Upgradeab
         __ERC165_init();
         tokenContract = _tokenContract;
         tokenId = _tokenId;
-        if (owner_ != address(0)) {
-            _transferOwnership(owner_);
-        }
         __Ownable_init(owner_);
     }
 
