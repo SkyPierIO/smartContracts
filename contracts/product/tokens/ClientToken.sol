@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ExpiryManagement} from "../../lib/ExpiryManagement.sol";
+import {IClientToken} from "../../interfaces/IClientToken.sol";
 
 /**
  * @title ClientToken
@@ -19,7 +20,8 @@ contract ClientToken is
     ERC1155Upgradeable,
     AccessControlUpgradeable,
     UUPSUpgradeable,
-    IERC2981
+    IERC2981,
+    IClientToken
 {
     using Strings for uint256;
 
@@ -31,18 +33,6 @@ contract ClientToken is
 
     using ExpiryManagement for ExpiryManagement.ExpiryInfo;
     mapping(uint256 => ExpiryManagement.ExpiryInfo) private expiries;
-
-    event BadgeIssued(
-        address indexed account,
-        uint256 indexed tokenId,
-        uint256 amount,
-        string metadata
-    );
-    event BadgeRevoked(
-        address indexed account,
-        uint256 indexed tokenId,
-        uint256 amount
-    );
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -64,7 +54,7 @@ contract ClientToken is
         uint256 tokenId,
         uint256 amount,
         string memory metadata
-    ) external onlyRole(MINTER_ROLE) {
+    ) external override onlyRole(MINTER_ROLE) {
         require(to != address(0), "Invalid recipient");
         _mint(to, tokenId, amount, "");
         emit BadgeIssued(to, tokenId, amount, metadata);
@@ -74,7 +64,7 @@ contract ClientToken is
         address from,
         uint256 tokenId,
         uint256 amount
-    ) external onlyRole(BURNER_ROLE) {
+    ) external override onlyRole(BURNER_ROLE) {
         _burn(from, tokenId, amount);
         emit BadgeRevoked(from, tokenId, amount);
     }
@@ -89,6 +79,15 @@ contract ClientToken is
 
     function timeRemaining(uint256 tokenId) public view returns (uint256) {
         return expiries[tokenId].getTimeRemaining();
+    }
+
+    function isValidHolder(address user, uint256 tokenId) external view override returns (bool) {
+        if (balanceOf(user, tokenId) == 0) return false;
+        return !expiries[tokenId].isActive || expiries[tokenId].isValid();
+    }
+
+    function getExpiry(uint256 tokenId) external view override returns (uint64) {
+        return expiries[tokenId].expiryTime;
     }
 
     function _update(

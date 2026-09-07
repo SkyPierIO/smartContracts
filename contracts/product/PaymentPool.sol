@@ -128,7 +128,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
         );
 
         // Issue CLIENT_BADGE (no expiry)
-        clientToken.issueToken(msg.sender, clientToken.CLIENT_ROLE(), 1, 0);
+        clientToken.mint(msg.sender, clientToken.CLIENT_BADGE(), 1, "");
 
         emit ClientBadgeIssued(msg.sender, paymentAmount);
     }
@@ -147,8 +147,9 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @dev Register an operator for payments
      * @param _operator Address of the operator
      */
-    function registerOperator(address payable _operator) external {
+    function registerOperator(address payable _operator) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
+        if (operators[_operator].wallet == address(0)) operatorsKeys.push(_operator);
         operators[_operator] = Participant({
             wallet: _operator,
             lastPayment: 0,
@@ -161,8 +162,9 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @dev Register a validator for payments
      * @param _validator Address of the validator
      */
-    function registerValidator(address payable _validator) external {
+    function registerValidator(address payable _validator) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
+        if (validators[_validator].wallet == address(0)) validatorsKeys.push(_validator);
         validators[_validator] = Participant({
             wallet: _validator,
             lastPayment: 0,
@@ -177,6 +179,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      */
     function registerBuilder(address payable _builder) external {
         require(hasRole(BUILDER_ROLE, msg.sender) || hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
+        if (builders[_builder].wallet == address(0)) buildersKeys.push(_builder);
         builders[_builder] = Participant({
             wallet: _builder,
             lastPayment: 0,
@@ -191,7 +194,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @param dataVolume Total data volume handled
      * @param duration Duration of service
      */
-    function recordOperatorMetrics(address _operator, uint256 dataVolume, uint256 duration) external {
+    function recordOperatorMetrics(address _operator, uint256 dataVolume, uint256 duration) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(operators[_operator].isActive, "Operator not active");
 
@@ -227,7 +230,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     /**
      * @dev Distribute payments to operators and validators from network pool
      */
-    function distributeNetworkPayments() external {
+    function distributeNetworkPayments() public {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
 
@@ -308,7 +311,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
     /**
      * @dev Distribute payments to builders from builder pool
      */
-    function distributeBuilderPayments() external {
+    function distributeBuilderPayments() public {
         require(hasRole(BUILDER_ROLE, msg.sender) || hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
         require(block.timestamp >= lastDistributionTime + BIOWEEKLY_INTERVAL, "Too soon for distribution");
 
@@ -385,7 +388,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @param participant Address of the participant
      * @param role Role of the participant (operator, validator, builder)
      */
-    function deactivateParticipant(address participant, string memory role) external {
+    function deactivateParticipant(address participant, string memory role) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
 
         if (keccak256(bytes(role)) == keccak256(bytes("operator"))) {
@@ -405,7 +408,7 @@ contract PaymentPool is Initializable, AccessControlUpgradeable, UUPSUpgradeable
      * @param participant Address of the participant
      * @param role Role of the participant (operator, validator, builder)
      */
-    function reactivateParticipant(address participant, string memory role) external {
+    function reactivateParticipant(address participant, string memory role) external override {
         require(hasRole(PAYMENT_MANAGER, msg.sender), "Not authorized");
 
         if (keccak256(bytes(role)) == keccak256(bytes("operator"))) {
