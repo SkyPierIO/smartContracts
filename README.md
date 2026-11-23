@@ -243,14 +243,19 @@ payout/            off-chain payout script and Merkle tree builder
 
 ## Build and test
 
-Requires [Foundry](https://book.getfoundry.sh/).
+Requires [Foundry](https://book.getfoundry.sh/). Libraries are git submodules pinned to releases: forge-std v1.17.0 and OpenZeppelin Contracts / Contracts Upgradeable v5.7.0. Compiler: solc 0.8.28.
 
 ```bash
-forge install
+git clone --recurse-submodules -b v2 https://github.com/SkyPierIO/smartContracts
+# or, in an existing clone:
+git submodule update --init --recursive
+
 forge build
 forge test            # unit, fuzz and invariant tests
 forge fmt --check
 ```
+
+CI runs the same checks plus Slither on every pull request.
 
 Deployment scripts will live in `script/` once written.
 

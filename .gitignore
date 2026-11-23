@@ -1,3 +1,14 @@
-/artifacts
+# Foundry
+/out
 /cache
-/node_modules
+/broadcast/*/31337/
+/broadcast/**/dry-run/
+
+# Environment
+.env
+.env.*
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
