@@ -5,7 +5,12 @@ import {Test} from "forge-std/Test.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {BETA_TESTER_BADGE_ID, CLIENT_TOKEN_ID, IClientToken} from "../src/interfaces/IClientToken.sol";
 import {IPaymentPool} from "../src/interfaces/IPaymentPool.sol";
-import {ISkypierVPN} from "../src/interfaces/ISkypierVPN.sol";
+import {
+    ISkypierVPN,
+    REGISTER_NODE_TYPEHASH,
+    SECP256K1_PEER_ID_LENGTH,
+    SECP256K1_PEER_ID_PREFIX
+} from "../src/interfaces/ISkypierVPN.sol";
 
 /// @notice Pins the function selectors, event topics, enum values and Merkle leaf format that code outside
 /// the contracts relies on: the payout script, the Go VPN node and the Safe's transactions. A failing test
@@ -110,16 +115,60 @@ contract InterfacesTest is Test {
     }
 
     function test_SkypierVPNSelectors() public pure {
+        assertEq(ISkypierVPN.registerNode.selector, bytes4(keccak256("registerNode(bytes,address,bytes32,bytes)")));
+        assertEq(ISkypierVPN.registrationDigest.selector, bytes4(keccak256("registrationDigest(address,bytes)")));
         assertEq(ISkypierVPN.validateNode.selector, bytes4(keccak256("validateNode(bytes32)")));
         assertEq(ISkypierVPN.deactivateNode.selector, bytes4(keccak256("deactivateNode(bytes32)")));
         assertEq(ISkypierVPN.isOperational.selector, bytes4(keccak256("isOperational(bytes32)")));
         assertEq(ISkypierVPN.isOperatorActive.selector, bytes4(keccak256("isOperatorActive(address)")));
     }
 
-    /// @dev NodeRegistered is not pinned yet: its fields depend on item 11.
     function test_SkypierVPNEvents() public pure {
+        assertEq(ISkypierVPN.NodeRegistered.selector, keccak256("NodeRegistered(bytes32,address,bytes,address)"));
         assertEq(ISkypierVPN.NodeValidated.selector, keccak256("NodeValidated(bytes32,address,address)"));
         assertEq(ISkypierVPN.NodeDeactivated.selector, keccak256("NodeDeactivated(bytes32,address,address)"));
         assertEq(ISkypierVPN.OperatorReferrerRecorded.selector, keccak256("OperatorReferrerRecorded(address,address)"));
+    }
+
+    function test_RegisterNodeTypehash() public pure {
+        assertEq(REGISTER_NODE_TYPEHASH, keccak256("RegisterNode(address operator,bytes peerId)"));
+        assertEq(REGISTER_NODE_TYPEHASH, 0x2b607385fe95c7dd6af77a13b0d11bff186b6f0202bff4e30063ad36eaa4c7e0);
+    }
+
+    // The secp256k1 test key published in the libp2p PeerID spec (peer-ids.md, "Test vectors"):
+    //   private key protobuf 0802122053DADF1D5A164D6B4ACDB15E24AA4C5B1D3461BDBD42ABEDB0A4404D56CED8FB
+    //   public key protobuf  08021221037777e994e452c21604f91de093ce415f5432f701dd8cd1a7a6fea0e630bfca99
+    // Its PeerID in text form is 16Uiu2HAmLhLvBoYaoZfaMUKuibM6ac163GwKY74c5kiSLg5KvLpY.
+    // Y and the address were computed independently of Solidity.
+    bytes internal constant SPEC_PEER_ID =
+        hex"002508021221037777e994e452c21604f91de093ce415f5432f701dd8cd1a7a6fea0e630bfca99";
+    uint256 internal constant SPEC_KEY_X = 0x7777e994e452c21604f91de093ce415f5432f701dd8cd1a7a6fea0e630bfca99;
+    uint256 internal constant SPEC_KEY_Y = 0x1b41b30efa52b659e9db235c31f9975578a17e2b356a6b84837b5b45c555cfb1;
+    address internal constant SPEC_NODE_KEY = 0x8b805bF52e9cE863375c5105E1158d519537F5B3;
+    uint256 internal constant SECP256K1_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+
+    /// @dev The accepted PeerID form, checked against the libp2p spec's own secp256k1 vector.
+    function test_SpecPeerIdForm() public pure {
+        bytes memory id = SPEC_PEER_ID;
+        assertEq(id.length, SECP256K1_PEER_ID_LENGTH);
+        assertEq(bytes6(bytes32(id)), SECP256K1_PEER_ID_PREFIX);
+        assertEq(uint8(id[6]), 0x03); // compressed key prefix: odd y
+        bytes32 x;
+        assembly {
+            x := mload(add(id, 39)) // 32 + 7: the 32 bytes after prefix and parity byte
+        }
+        assertEq(uint256(x), SPEC_KEY_X);
+        assertEq(keccak256(id), 0x7bc819423eef2e6642a5b5242f1595913a3badc48f19c084c9db2c0ef7019e29);
+    }
+
+    /// @dev The y the operator passes is on the curve with the right parity, and the node key address is
+    /// keccak256(x, y), the same address ecrecover returns for that key.
+    function test_SpecNodeKey() public pure {
+        uint256 lhs = mulmod(SPEC_KEY_Y, SPEC_KEY_Y, SECP256K1_P);
+        uint256 x3 = mulmod(mulmod(SPEC_KEY_X, SPEC_KEY_X, SECP256K1_P), SPEC_KEY_X, SECP256K1_P);
+        uint256 rhs = addmod(x3, 7, SECP256K1_P);
+        assertEq(lhs, rhs);
+        assertEq(SPEC_KEY_Y & 1, 1);
+        assertEq(address(uint160(uint256(keccak256(abi.encode(SPEC_KEY_X, SPEC_KEY_Y))))), SPEC_NODE_KEY);
     }
 }

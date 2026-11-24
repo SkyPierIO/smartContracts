@@ -5,8 +5,9 @@ import {ISkypierVPN} from "../../interfaces/ISkypierVPN.sol";
 
 /// @title SkypierVPNStorage
 /// @notice ERC-7201 namespaced storage for SkypierVPN.
-/// @dev Fields are only ever appended, never reordered or removed. Item 11 may add the node key's address;
-/// Pre-mainnet adds validator status and the ValidatorEscrow address.
+/// @dev Fields are only ever appended, never reordered or removed. The node key's address lives in each Node
+/// record. Pre-mainnet adds validator status and the ValidatorEscrow address. The EIP-712 domain uses
+/// OpenZeppelin's own namespace.
 library SkypierVPNStorage {
     /// @notice An operator's registration record.
     /// @param referrer Recorded at the first registration; zero if none.
