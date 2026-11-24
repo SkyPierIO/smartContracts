@@ -24,7 +24,8 @@ pragma solidity 0.8.28;
 /// none, permanently; referrers passed on later payments are ignored. Rewards are computed off-chain later
 /// (only mainnet referrals whose first purchase is 3 units or more earn them), so nothing is paid here.
 ///
-/// Pause stops {payForAccess}, {fundPool} and {claim}. Root posting and settings still work while paused.
+/// Pause stops {payForAccess} and {claim}. Root posting, {fundPool} and settings still work while paused, so the
+/// Safe can top up a pool and post a corrected root before claims reopen.
 interface IPaymentPool {
     /// @notice The two payout pools. Values are fixed: Network = 0, Builder = 1.
     enum Pool {
@@ -134,7 +135,7 @@ interface IPaymentPool {
 
     /// @notice Adds USDC to a pool, for example a Safe top-up of the Builder Pool or testnet seeding.
     /// @dev Anyone can call. Pulls `amount` USDC from the caller (approve first). It only adds money.
-    /// Not while paused. Emits {PoolFunded}.
+    /// Works while paused. Emits {PoolFunded}.
     /// @param pool The pool to fund.
     /// @param amount USDC to add, in base units; must be positive.
     function fundPool(Pool pool, uint256 amount) external;
@@ -173,7 +174,7 @@ interface IPaymentPool {
     /// @param bps The Network Pool's share in basis points (7000 = 70%).
     function setNetworkSplitBps(uint16 bps) external;
 
-    /// @notice Pauses payments, pool funding and claims.
+    /// @notice Pauses payments and claims.
     /// @dev Only PAUSER_ROLE. Emits Pausable's Paused.
     function pause() external;
 
