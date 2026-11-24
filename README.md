@@ -265,4 +265,5 @@ Deployment scripts will live in `script/` once written.
 
 - The Safe holds every admin role; the deploy script must leave the deployer with none.
 - Payments and claims can be paused by the Safe.
+- `ClientToken`: only `PaymentPool` holds `MINTER_ROLE`, granted by the Safe after `PaymentPool` is deployed. State is written before a mint or transfer calls the receiver's ERC-1155 hook, and every state-changing function is `nonReentrant`.
 - Not audited. Don't use with real funds until the pre-mainnet phase, including an external audit, is complete.
