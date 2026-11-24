@@ -145,7 +145,7 @@ contract InterfacesTest is Test {
     uint256 internal constant SPEC_KEY_X = 0x7777e994e452c21604f91de093ce415f5432f701dd8cd1a7a6fea0e630bfca99;
     uint256 internal constant SPEC_KEY_Y = 0x1b41b30efa52b659e9db235c31f9975578a17e2b356a6b84837b5b45c555cfb1;
     address internal constant SPEC_NODE_KEY = 0x8b805bF52e9cE863375c5105E1158d519537F5B3;
-    uint256 internal constant SECP256K1_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
+    uint256 internal constant SECP256K1_P = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F;
 
     /// @dev The accepted PeerID form, checked against the libp2p spec's own secp256k1 vector.
     function test_SpecPeerIdForm() public pure {
@@ -164,6 +164,7 @@ contract InterfacesTest is Test {
     /// @dev The y the operator passes is on the curve with the right parity, and the node key address is
     /// keccak256(x, y), the same address ecrecover returns for that key.
     function test_SpecNodeKey() public pure {
+        assertEq(SECP256K1_P, type(uint256).max - 0x1000003D0); // p = 2^256 - 2^32 - 977
         uint256 lhs = mulmod(SPEC_KEY_Y, SPEC_KEY_Y, SECP256K1_P);
         uint256 x3 = mulmod(mulmod(SPEC_KEY_X, SPEC_KEY_X, SECP256K1_P), SPEC_KEY_X, SECP256K1_P);
         uint256 rhs = addmod(x3, 7, SECP256K1_P);
