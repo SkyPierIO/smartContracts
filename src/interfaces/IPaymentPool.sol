@@ -186,10 +186,7 @@ interface IPaymentPool {
     function quote(uint256 units) external view returns (uint256 amount);
 
     /// @notice The current price settings.
-    function pricing()
-        external
-        view
-        returns (uint256 price, uint48 unitLength, uint16 maxUnits, uint48 fullTermBonus);
+    function pricing() external view returns (uint256 price, uint48 unitLength, uint16 maxUnits, uint48 fullTermBonus);
 
     /// @notice The Network Pool's share of each payment, in basis points.
     function networkSplitBps() external view returns (uint16);
