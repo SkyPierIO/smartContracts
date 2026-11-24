@@ -19,6 +19,8 @@ pragma solidity 0.8.28;
 ///   leaf = keccak256(bytes.concat(keccak256(abi.encode(uint8(pool), account, cumulativeAmount))))
 /// `cumulativeAmount` is everything the account has earned from that pool since launch, in USDC base units.
 /// A claim pays the difference between it and what the account has already claimed from that pool.
+/// The payout script must never give an account a cumulative amount below what it has already claimed
+/// ({claimedOf}), including in a corrected root. The contract can't check this: it sees only the tree's total.
 ///
 /// Referrals: the first {payForAccess} by a wallet records its referrer once. A zero referrer there means
 /// none, permanently; referrers passed on later payments are ignored. Rewards are computed off-chain later
@@ -117,7 +119,9 @@ interface IPaymentPool {
     /// @notice The account has already claimed everything in its leaf.
     error NothingToClaim();
 
-    /// @notice The claim would take the pool below zero. Should be unreachable given the root total check.
+    /// @notice The claim would take the pool below zero. The root total check doesn't rule this out: a corrected
+    /// root that lowers an account below what it already claimed leaves less in the pool than the tree promises.
+    /// The payout script prevents that; this error stops the pool paying out more than it received.
     error InsufficientPoolBalance(Pool pool, uint256 requested, uint256 available);
 
     /// @notice Buys access for the caller at the current price, and records their referrer on their first
@@ -143,7 +147,8 @@ interface IPaymentPool {
     /// @notice Posts a pool's Merkle root for a payout period.
     /// @dev Only DEFAULT_ADMIN_ROLE (the admin Safe). Works while paused. Reverts with {InvalidRoot},
     /// {TotalExceedsReceived}, {PeriodEndBeforeLast} or {PeriodEndInFuture}. Re-posting the same period end
-    /// is allowed, for corrections. Emits {MerkleRootSet}.
+    /// is allowed, for corrections; a correction must not lower any account below what it already claimed.
+    /// Emits {MerkleRootSet}.
     /// @param pool The pool the root pays from.
     /// @param root The tree's root; leaf format in the contract notes above.
     /// @param totalCumulative Sum of every leaf's cumulative amount; must not exceed what the pool has
