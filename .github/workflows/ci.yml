@@ -38,6 +38,19 @@ jobs:
         with:
           submodules: recursive
 
+      # Slither only analyses src/ (it skips test/ and script/) and crashes when there is
+      # nothing to compile, so it runs only once the first contract lands in src/.
+      - name: Check for contracts in src/
+        id: src
+        run: |
+          if find src -name '*.sol' -print -quit | grep -q .; then
+            echo "has_contracts=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_contracts=false" >> "$GITHUB_OUTPUT"
+            echo "No contracts in src/ yet; skipping Slither."
+          fi
+
       - uses: crytic/slither-action@v0.4.2
+        if: steps.src.outputs.has_contracts == 'true'
         with:
           fail-on: medium
