@@ -8,6 +8,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
@@ -118,9 +119,9 @@ contract ClientTokenTest is ClientTokenTestBase {
 
         assertEq(second, first + UNIT);
         assertEq(_balance(alice), 1);
-        // Only AccessExtended: no second mint.
+        // Only AccessExtended, with its fields: no second mint.
         assertEq(logs.length, 1);
-        assertEq(logs[0].topics[0], IClientToken.AccessExtended.selector);
+        _assertAccessExtendedLog(logs[0], alice, second);
     }
 
     function test_ExtendAccess_ExpiredWalletExtendsFromNow() public {
@@ -136,7 +137,16 @@ contract ClientTokenTest is ClientTokenTestBase {
         assertEq(newExpiry, later + UNIT);
         assertEq(_balance(alice), 1);
         assertEq(logs.length, 1);
+        _assertAccessExtendedLog(logs[0], alice, newExpiry);
         assertTrue(token.isValid(alice, CLIENT_TOKEN_ID));
+    }
+
+    function _assertAccessExtendedLog(Vm.Log memory log, address account, uint48 newExpiry) internal view {
+        assertEq(log.emitter, address(token));
+        assertEq(log.topics[0], IClientToken.AccessExtended.selector);
+        assertEq(log.topics[1], bytes32(uint256(uint160(account))));
+        assertEq(log.topics[2], bytes32(CLIENT_TOKEN_ID));
+        assertEq(abi.decode(log.data, (uint48)), newExpiry);
     }
 
     function test_ExtendAccess_ExactlyAtExpiryExtendsFromNow() public {
@@ -546,6 +556,8 @@ contract ClientTokenTest is ClientTokenTestBase {
         assertTrue(token.supportsInterface(type(IAccessControl).interfaceId));
         assertTrue(token.supportsInterface(type(IClientToken).interfaceId));
         assertFalse(token.supportsInterface(0xffffffff));
+        // A real interface the token doesn't implement: it is not an ERC-1155 receiver.
+        assertFalse(token.supportsInterface(type(IERC1155Receiver).interfaceId));
     }
 
     /// @dev XOR of the six IClientToken selectors, computed by script. Changes if the interface changes.

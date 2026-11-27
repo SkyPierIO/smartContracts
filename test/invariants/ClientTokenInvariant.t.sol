@@ -18,6 +18,8 @@ contract ClientTokenHandler is Test {
     address[] public actors;
 
     uint256 public transferMismatches;
+    uint256 public unsupportedIdSuccesses;
+    uint256 public unsupportedIdAttempts;
     uint256 public calls;
 
     constructor(ClientToken token_, address safe_, address minter_, address[] memory actors_) {
@@ -66,6 +68,24 @@ contract ClientTokenHandler is Test {
         calls++;
     }
 
+    /// @dev Tries to mint or move an unsupported id: 0, 2 (the Beta Tester badge) or 3. Every attempt must revert.
+    function tryUnsupportedId(uint256 idSeed, uint256 fromSeed, uint256 toSeed, bool viaTransfer) external {
+        uint256 id = bound(idSeed, 0, 3);
+        if (id == CLIENT_TOKEN_ID) id = BETA_TESTER_BADGE_ID;
+        unsupportedIdAttempts++;
+        if (viaTransfer) {
+            vm.prank(safe);
+            try token.adminTransfer(_actor(fromSeed), _actor(toSeed), id) {
+                unsupportedIdSuccesses++;
+            } catch {}
+        } else {
+            vm.prank(minter);
+            try token.extendAccess(_actor(toSeed), id, 30 days) {
+                unsupportedIdSuccesses++;
+            } catch {}
+        }
+    }
+
     function warp(uint256 secondsAhead) external {
         secondsAhead = bound(secondsAhead, 1, 60 days);
         vm.warp(block.timestamp + secondsAhead);
@@ -75,6 +95,7 @@ contract ClientTokenHandler is Test {
 /// @notice Invariants that back isValid's one-read shortcut and adminTransfer's time accounting.
 contract ClientTokenInvariantTest is ClientTokenTestBase {
     ClientTokenHandler internal handler;
+    ReentrantReceiver internal reentrantWallet;
     address[] internal actors;
 
     function setUp() public override {
@@ -83,7 +104,8 @@ contract ClientTokenInvariantTest is ClientTokenTestBase {
         actors.push(bob);
         actors.push(stranger);
         actors.push(address(new AcceptingReceiver()));
-        actors.push(address(new ReentrantReceiver(IClientToken(address(token)))));
+        reentrantWallet = new ReentrantReceiver(IClientToken(address(token)));
+        actors.push(address(reentrantWallet));
 
         handler = new ClientTokenHandler(token, safe, minter, actors);
         targetContract(address(handler));
@@ -119,10 +141,19 @@ contract ClientTokenInvariantTest is ClientTokenTestBase {
         assertEq(handler.transferMismatches(), 0);
     }
 
-    /// @dev Nothing can hold or mint the reserved Beta Tester badge.
+    /// @dev Nothing can hold or mint the reserved Beta Tester badge, or any id other than 1. The handler's
+    /// tryUnsupportedId action attempts it; every attempt must revert.
     function invariant_NoBetaTesterBadges() public view {
+        assertEq(handler.unsupportedIdSuccesses(), 0);
         for (uint256 i = 0; i < actors.length; i++) {
             assertEq(token.balanceOf(actors[i], BETA_TESTER_BADGE_ID), 0);
+            assertEq(token.balanceOf(actors[i], 0), 0);
+            assertEq(token.balanceOf(actors[i], 3), 0);
         }
+    }
+
+    /// @dev A receiver's attempt to burn from inside the mint or transfer hook is always refused.
+    function invariant_ReceiverHookCannotReenter() public view {
+        assertFalse(reentrantWallet.burnSucceeded());
     }
 }
