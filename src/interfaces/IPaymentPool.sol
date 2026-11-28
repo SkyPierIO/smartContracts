@@ -26,13 +26,21 @@ pragma solidity 0.8.28;
 /// none, permanently; referrers passed on later payments are ignored. Rewards are computed off-chain later
 /// (only mainnet referrals whose first purchase is 3 units or more earn them), so nothing is paid here.
 ///
-/// Pause stops {payForAccess} and {claim}. Root posting, {fundPool} and settings still work while paused, so the
-/// Safe can top up a pool and post a corrected root before claims reopen.
+/// Pause stops {payForAccess}, {claim} and {claimMany}. Root posting, {fundPool} and settings still work while
+/// paused, so the Safe can top up a pool and post a corrected root before claims reopen.
 interface IPaymentPool {
     /// @notice The two payout pools. Values are fixed: Network = 0, Builder = 1.
     enum Pool {
         Network,
         Builder
+    }
+
+    /// @notice One entry of {claimMany}: a pool, the caller's cumulative amount in that pool's current tree, and
+    /// the Merkle proof of the caller's leaf.
+    struct ClaimRequest {
+        Pool pool;
+        uint256 cumulativeAmount;
+        bytes32[] proof;
     }
 
     /// @notice A client paid for access.
@@ -95,7 +103,11 @@ interface IPaymentPool {
     /// @notice An address argument was the zero address.
     error ZeroAddress();
 
-    /// @notice A price setting was zero: price, unit length or max units.
+    /// @notice The ClientToken address given at setup doesn't report IClientToken through ERC-165.
+    error InvalidClientToken(address clientToken);
+
+    /// @notice A price setting is invalid: price, unit length or max units is zero, or the full-term bonus is
+    /// longer than one unit.
     error InvalidPricing();
 
     /// @notice The split is above 10_000 basis points.
@@ -106,6 +118,10 @@ interface IPaymentPool {
 
     /// @notice The tree's total is more than the pool has ever received.
     error TotalExceedsReceived(Pool pool, uint256 totalCumulative, uint256 totalReceived);
+
+    /// @notice The tree's total is less than the pool has already paid out. Every leaf must be at least what its
+    /// account has claimed, so such a tree breaks the payout-script rule in the contract notes.
+    error TotalBelowClaimed(Pool pool, uint256 totalCumulative, uint256 totalClaimed);
 
     /// @notice The period end is earlier than the last root's period end.
     error PeriodEndBeforeLast(uint48 periodEnd, uint48 lastPeriodEnd);
@@ -146,9 +162,9 @@ interface IPaymentPool {
 
     /// @notice Posts a pool's Merkle root for a payout period.
     /// @dev Only DEFAULT_ADMIN_ROLE (the admin Safe). Works while paused. Reverts with {InvalidRoot},
-    /// {TotalExceedsReceived}, {PeriodEndBeforeLast} or {PeriodEndInFuture}. Re-posting the same period end
-    /// is allowed, for corrections; a correction must not lower any account below what it already claimed.
-    /// Emits {MerkleRootSet}.
+    /// {TotalExceedsReceived}, {TotalBelowClaimed}, {PeriodEndBeforeLast} or {PeriodEndInFuture}. Re-posting the
+    /// same period end is allowed, for corrections; a correction must not lower any account below what it already
+    /// claimed. Emits {MerkleRootSet}.
     /// @param pool The pool the root pays from.
     /// @param root The tree's root; leaf format in the contract notes above.
     /// @param totalCumulative Sum of every leaf's cumulative amount; must not exceed what the pool has
@@ -165,9 +181,21 @@ interface IPaymentPool {
     /// @return amount USDC paid by this claim.
     function claim(Pool pool, uint256 cumulativeAmount, bytes32[] calldata proof) external returns (uint256 amount);
 
+    /// @notice Claims the caller's unpaid earnings from several pools in one transaction, with one USDC transfer.
+    /// Pays the caller only.
+    /// @dev Each entry is checked against its own pool's current root. Entries with nothing new are skipped, so
+    /// a pool listed twice pays once. Any invalid proof, or a pool short of funds, reverts the whole call
+    /// ({InvalidProof}, {InsufficientPoolBalance}); {NothingToClaim} if no entry pays anything, including an
+    /// empty list. Not while paused. Emits {Claimed} for each pool that pays.
+    /// @param requests The pools, cumulative amounts and proofs.
+    /// @return total USDC paid by this call.
+    function claimMany(ClaimRequest[] calldata requests) external returns (uint256 total);
+
     /// @notice Changes the price settings. Applies to purchases from the next transaction on.
-    /// @dev Only DEFAULT_ADMIN_ROLE. Reverts with {InvalidPricing} if `price`, `unitLength` or `maxUnits` is 0.
-    /// `fullTermBonus` may be 0. Emits {PricingUpdated}.
+    /// @dev Only DEFAULT_ADMIN_ROLE. Reverts with {InvalidPricing} if `price`, `unitLength` or `maxUnits` is 0, or
+    /// if `fullTermBonus` is longer than `unitLength` (a full-term purchase would always pass the expiry cap).
+    /// `fullTermBonus` may be 0. Emits {PricingUpdated}. Runbook: `maxPayment` protects buyers from a price change
+    /// but not from a shorter unit or bonus, so change `unitLength` or `fullTermBonus` only while paused.
     /// @param price USDC per unit, in base units.
     /// @param unitLength Seconds per unit.
     /// @param maxUnits Most units in one purchase; the bonus applies to purchases of exactly this many.
@@ -188,6 +216,7 @@ interface IPaymentPool {
     function unpause() external;
 
     /// @notice What `units` units cost now, in USDC base units.
+    /// @dev Reverts with {InvalidUnits} unless `units` is 1 to `maxUnits`.
     function quote(uint256 units) external view returns (uint256 amount);
 
     /// @notice The current price settings.

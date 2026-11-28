@@ -52,6 +52,7 @@ contract InterfacesTest is Test {
         assertEq(IPaymentPool.fundPool.selector, bytes4(keccak256("fundPool(uint8,uint256)")));
         assertEq(IPaymentPool.setMerkleRoot.selector, bytes4(keccak256("setMerkleRoot(uint8,bytes32,uint256,uint48)")));
         assertEq(IPaymentPool.claim.selector, bytes4(keccak256("claim(uint8,uint256,bytes32[])")));
+        assertEq(IPaymentPool.claimMany.selector, bytes4(keccak256("claimMany((uint8,uint256,bytes32[])[])")));
         assertEq(IPaymentPool.setPricing.selector, bytes4(keccak256("setPricing(uint256,uint48,uint16,uint48)")));
         assertEq(IPaymentPool.setNetworkSplitBps.selector, bytes4(keccak256("setNetworkSplitBps(uint16)")));
         assertEq(IPaymentPool.pause.selector, bytes4(keccak256("pause()")));
