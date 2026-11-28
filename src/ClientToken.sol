@@ -21,7 +21,8 @@ import {ClientTokenStorage} from "./lib/storage/ClientTokenStorage.sol";
 /// - A wallet with no token has expiry 0, and a wallet with a token has a non-zero expiry. {isValid} relies on this
 ///   to read only the expiry. Any upgrade must keep it.
 /// - State is written and events emitted before a mint or transfer calls the receiver's `onERC1155Received`, and
-///   the three state-changing functions are `nonReentrant`.
+///   the three functions that change a token or an expiry ({extendAccess}, {burnClientToken}, {adminTransfer}) are
+///   `nonReentrant`.
 /// - The IClientToken functions revert with {UnsupportedId} for any id other than {CLIENT_TOKEN_ID}; {isValid}
 ///   returns false instead. ERC-1155's own `balanceOf`, `balanceOfBatch` and `uri` don't revert for other ids.
 contract ClientToken is

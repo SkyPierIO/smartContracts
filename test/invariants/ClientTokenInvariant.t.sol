@@ -19,6 +19,7 @@ contract ClientTokenHandler is Test {
 
     uint256 public transferMismatches;
     uint256 public unsupportedIdSuccesses;
+    uint256 public unsupportedIdWrongErrors;
     uint256 public unsupportedIdAttempts;
     uint256 public calls;
 
@@ -77,12 +78,23 @@ contract ClientTokenHandler is Test {
             vm.prank(safe);
             try token.adminTransfer(_actor(fromSeed), _actor(toSeed), id) {
                 unsupportedIdSuccesses++;
-            } catch {}
+            } catch (bytes memory reason) {
+                _checkUnsupportedId(reason, id);
+            }
         } else {
             vm.prank(minter);
             try token.extendAccess(_actor(toSeed), id, 30 days) {
                 unsupportedIdSuccesses++;
-            } catch {}
+            } catch (bytes memory reason) {
+                _checkUnsupportedId(reason, id);
+            }
+        }
+    }
+
+    /// @dev Counts any revert that isn't UnsupportedId(id), such as NoAccess or SameAccount from a later check.
+    function _checkUnsupportedId(bytes memory reason, uint256 id) internal {
+        if (keccak256(reason) != keccak256(abi.encodeWithSelector(IClientToken.UnsupportedId.selector, id))) {
+            unsupportedIdWrongErrors++;
         }
     }
 
@@ -145,6 +157,7 @@ contract ClientTokenInvariantTest is ClientTokenTestBase {
     /// tryUnsupportedId action attempts it; every attempt must revert.
     function invariant_NoBetaTesterBadges() public view {
         assertEq(handler.unsupportedIdSuccesses(), 0);
+        assertEq(handler.unsupportedIdWrongErrors(), 0);
         for (uint256 i = 0; i < actors.length; i++) {
             assertEq(token.balanceOf(actors[i], BETA_TESTER_BADGE_ID), 0);
             assertEq(token.balanceOf(actors[i], 0), 0);
