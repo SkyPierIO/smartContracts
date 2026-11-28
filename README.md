@@ -83,7 +83,7 @@ Design rules:
 | Contract | Does | Upgradeable | Phase |
 | --- | --- | --- | --- |
 | `ClientToken` | ERC-1155. Id 1 `CLIENT_TOKEN` (paid access, expires); id 2 `BETA_TESTER_BADGE` (reserved). Only the Safe can transfer. `isValid(account, id)` | UUPS | Core MVP (id 2 in Phase 2) |
-| `PaymentPool` | `payForAccess(units, maxPayment, referrer)`; splits USDC 70% Network Pool / 30% Builder Pool; one Merkle root per pool; cumulative claims; pause | UUPS | Core MVP |
+| `PaymentPool` | `payForAccess(units, maxPayment, referrer)`; splits USDC 70% Network Pool / 30% Builder Pool; one Merkle root per pool; cumulative claims with `claim` or, across pools, `claimMany`; `fundPool`; pause | UUPS | Core MVP |
 | `SkypierVPN` | Operator whitelist, `registerNode(peerId, referrer)`, one operator per PeerID, validation by someone other than the operator, `deactivateNode`, `isOperational` | UUPS | Core MVP |
 | `ValidatorEscrow` | USDC stake per node and per validator, 14-day unbonding (7–30 day bounds), slashing to the treasury | UUPS | Pre-mainnet |
 | `HumanResources` | Staff records (level 1.000–6.999, work class, job family, start and departure dates, departure type), base rate, approval tiers, `offboard` | UUPS | Pre-mainnet |
@@ -266,4 +266,5 @@ Deployment scripts will live in `script/` once written.
 - The Safe holds every admin role; the deploy script must leave the deployer with none.
 - Payments and claims can be paused by the Safe.
 - `ClientToken`: only `PaymentPool` holds `MINTER_ROLE`, granted by the Safe after `PaymentPool` is deployed. State is written before a mint or transfer calls the receiver's ERC-1155 hook, and the three functions that change a token or an expiry (`extendAccess`, `burnClientToken`, `adminTransfer`) are `nonReentrant`.
+- `PaymentPool`: USDC leaves only through `claim` and `claimMany`, to the caller, and no pool can pay out more than it received. Payment state is written before ClientToken's mint calls the payer, and `payForAccess`, `fundPool`, `claim` and `claimMany` are `nonReentrant`. There is no sweep: USDC sent without `fundPool` stays in the contract until an upgrade adds recovery. Change `unitLength` or `fullTermBonus` only while paused, since `maxPayment` protects the price but not the time bought.
 - Not audited. Don't use with real funds until the pre-mainnet phase, including an external audit, is complete.
